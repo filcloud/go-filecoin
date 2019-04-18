@@ -15,9 +15,8 @@ import (
 )
 
 // NewTestPoSt creates a trivial, right-sized byte slice for a Proof of Spacetime.
-func NewTestPoSt() [192]byte {
-	var newProof [192]byte
-	return newProof
+func NewTestPoSt() []byte {
+	return make([]byte, int(TestPoStPartitions.ProofSize().Uint64()))
 }
 
 // MockRecoverer implements the Recoverer interface

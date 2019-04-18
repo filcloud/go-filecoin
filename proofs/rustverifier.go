@@ -65,7 +65,8 @@ func (rp *RustVerifier) VerifySeal(req VerifySealRequest) (VerifySealResponse, e
 		(*[32]C.uint8_t)(commRStarCBytes),
 		(*[31]C.uint8_t)(proverIDCBytes),
 		(*[31]C.uint8_t)(sectorIDCbytes),
-		(*[384]C.uint8_t)(proofCBytes),
+		(*C.uint8_t)(proofCBytes),
+		C.size_t(len(req.Proof)),
 	)))
 	defer C.destroy_verify_seal_response(resPtr)
 
@@ -82,8 +83,16 @@ func (rp *RustVerifier) VerifySeal(req VerifySealRequest) (VerifySealResponse, e
 func (rp *RustVerifier) VerifyPoST(req VerifyPoSTRequest) (VerifyPoSTResponse, error) {
 	defer elapsed("VerifyPoST")()
 
-	// flattening the byte slice makes it easier to copy into the C heap
+	// CommRs must be provided to C.verify_post in the same order that they were
+	// provided to the C.generate_post
 	commRs := req.SortedCommRs.Values()
+
+	// validate verification request
+	if len(commRs) == 0 || len(req.Proofs) == 0 || len(req.Proofs[0]) == 0 {
+		return VerifyPoSTResponse{}, errors.New("no PoSt proof to verify")
+	}
+
+	// flattening the byte slice makes it easier to copy into the C heap
 	flattened := make([]byte, 32*len(commRs))
 	for idx, commR := range commRs {
 		copy(flattened[(32*idx):(32*(1+idx))], commR[:])
@@ -118,6 +127,7 @@ func (rp *RustVerifier) VerifyPoST(req VerifyPoSTRequest) (VerifyPoSTResponse, e
 		proofsLen,
 		faultsPtr,
 		faultsSize,
+		C.size_t(len(req.Proofs[0])),
 	)))
 	defer C.destroy_verify_post_response(resPtr)
 
@@ -126,10 +136,7 @@ func (rp *RustVerifier) VerifyPoST(req VerifyPoSTRequest) (VerifyPoSTResponse, e
 	}
 
 	return VerifyPoSTResponse{
-		// TODO: change this to the bool statement
-		// See https://github.com/filecoin-project/go-filecoin/issues/1302
-		// bool(resPtr.is_valid),
-		IsValid: true,
+		IsValid: bool(resPtr.is_valid),
 	}, nil
 }
 
@@ -146,16 +153,26 @@ func GetMaxUserBytesPerStagedSector(size types.SectorSize) (uint64, error) {
 	return uint64(C.get_max_user_bytes_per_staged_sector(fsize)), nil
 }
 
-// cPoStProofs copies bytes from the provided PoSt proofs to a C array and
-// returns a pointer to that array and its size. Callers are responsible for
-// freeing the pointer. If they do not do that, the array will be leaked.
-func cPoStProofs(src []types.PoStProof) (*C.uint8_t, C.size_t) {
-	flattenedLen := C.size_t(192 * len(src))
+// cPoStProofs copies bytes from the provided PoSt proofs to a single, flattened
+// C array and returns a pointer to that array and its size. Callers are
+// responsible for freeing the pointer. If they do not do that, the array will
+// be leaked.
+func cPoStProofs(src []types.PoStProof) (proofsPtr *C.uint8_t, proofsLen C.size_t) {
+	if len(src) == 0 {
+		return
+	}
+
+	proofSize := len(src[0])
+	if proofSize == 0 {
+		return
+	}
+
+	flattenedLen := C.size_t(proofSize * len(src))
 
 	// flattening the byte slice makes it easier to copy into the C heap
 	flattened := make([]byte, flattenedLen)
 	for idx, proof := range src {
-		copy(flattened[(192*idx):(192*(1+idx))], proof[:])
+		copy(flattened[(proofSize*idx):(proofSize*(1+idx))], proof[:])
 	}
 
 	return (*C.uint8_t)(C.CBytes(flattened)), flattenedLen

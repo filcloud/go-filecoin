@@ -278,7 +278,7 @@ func (sb *RustSectorBuilder) findSealedSectorMetadata(sectorID uint64) (*SealedS
 		var commRStar types.CommRStar
 		copy(commRStar[:], commRStarSlice)
 
-		proofSlice := C.GoBytes(unsafe.Pointer(&resPtr.snark_proof[0]), 384)
+		proofSlice := C.GoBytes(unsafe.Pointer(resPtr.proofs_ptr), C.int(resPtr.proofs_len))
 		var proof types.SealProof
 		copy(proof[:], proofSlice)
 
@@ -383,7 +383,7 @@ func (sb *RustSectorBuilder) GeneratePoSt(req GeneratePoStRequest) (GeneratePoSt
 		return GeneratePoStResponse{}, errors.New(C.GoString(resPtr.error_msg))
 	}
 
-	proofs, err := goPoStProofs(resPtr.flattened_proofs_ptr, resPtr.flattened_proofs_len)
+	proofs, err := goPoStProofs(resPtr.single_proof_len, resPtr.flattened_proofs_ptr, resPtr.flattened_proofs_len)
 	if err != nil {
 		return GeneratePoStResponse{}, err
 	}
@@ -394,11 +394,12 @@ func (sb *RustSectorBuilder) GeneratePoSt(req GeneratePoStRequest) (GeneratePoSt
 	}, nil
 }
 
-// goPoStProofs accepts a pointer to a C-allocated byte array and a size and
-// produces a Go-managed slice of PoStProof. Note that this function copies
-// values into the Go heap from C.
-func goPoStProofs(src *C.uint8_t, size C.size_t) ([]types.PoStProof, error) {
-	chunkSize := int(types.PoStBytesLen)
+// goPoStProofs accepts chunk size (proofLen), a pointer to a C-allocated byte
+// array and a size (length of the byte array) and produces a Go-managed slice
+// of PoStProof (each of which has length proofLen). Note that this function
+// copies values into the Go heap from C.
+func goPoStProofs(proofLen C.size_t, src *C.uint8_t, size C.size_t) ([]types.PoStProof, error) {
+	chunkSize := int(proofLen)
 	arrSize := int(size)
 
 	if src == nil {
@@ -407,7 +408,7 @@ func goPoStProofs(src *C.uint8_t, size C.size_t) ([]types.PoStProof, error) {
 
 	if arrSize%chunkSize != 0 {
 		msg := "PoSt proof array invalid size (arrSize=%d % PoStBytesLen=%d != 0)"
-		return nil, errors.Errorf(msg, arrSize, types.PoStBytesLen)
+		return nil, errors.Errorf(msg, arrSize, chunkSize)
 	}
 
 	out := make([]types.PoStProof, arrSize/chunkSize)
