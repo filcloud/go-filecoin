@@ -41,8 +41,7 @@ func TestWriteFile(t *testing.T) {
 	content, err := ioutil.ReadFile(filepath.Join(dir, "config.json"))
 	assert.NoError(err)
 
-	assert.Equal(
-		`{
+	assert.Equal(`{
 	"api": {
 		"address": "/ip4/127.0.0.1/tcp/3453",
 		"accessControlAllowOrigin": [
@@ -93,6 +92,11 @@ func TestWriteFile(t *testing.T) {
 	"mpool": {
 		"maxPoolSize": 10000,
 		"maxNonceGap": "100"
+	},
+	"trace": {
+		"jaegerEndpoint": "http://localhost:14268/api/traces",
+		"jaegerTracingEnabled": false,
+		"probabilitySampler": 1
 	}
 }`,
 		string(content),

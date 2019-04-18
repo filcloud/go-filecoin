@@ -27,6 +27,7 @@ type Config struct {
 	Net       string             `json:"net"`
 	Metrics   *MetricsConfig     `json:"metrics"`
 	Mpool     *MessagePoolConfig `json:"mpool"`
+	Trace     *TraceConfig       `json:"trace"`
 }
 
 // APIConfig holds all configuration options related to the api.
@@ -168,6 +169,23 @@ func newDefaultMetricsConfig() *MetricsConfig {
 	}
 }
 
+type TraceConfig struct {
+	// JaegerEndpoint is the URL traces are collected on.
+	JaegerEndpoint string `json:"jaegerEndpoint"`
+	// JaegerTracingEnabled will enable exporting traces to jaeger when true.
+	JaegerTracingEnabled bool `json:"jaegerTracingEnabled"`
+	// ProbabilitySampler will sample fraction of traces, 1.0 will sample all traces.
+	ProbabilitySampler float64 `json:"probabilitySampler"`
+}
+
+func newDefaultTraceConfig() *TraceConfig {
+	return &TraceConfig{
+		JaegerEndpoint:       "http://localhost:14268/api/traces",
+		JaegerTracingEnabled: false,
+		ProbabilitySampler:   1.0,
+	}
+}
+
 // MetricsConfig holds all configuration options related to nodes message pool (mpool).
 type MessagePoolConfig struct {
 	// MaxPoolSize is the maximum number of pending messages will will allow in the message pool at any time
@@ -197,6 +215,7 @@ func NewDefaultConfig() *Config {
 		Net:       "",
 		Metrics:   newDefaultMetricsConfig(),
 		Mpool:     newDefaultMessagePoolConfig(),
+		Trace:     newDefaultTraceConfig(),
 	}
 }
 

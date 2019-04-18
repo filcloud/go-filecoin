@@ -68,6 +68,11 @@ const (
 	"mpool": {
 		"maxPoolSize": 10000,
 		"maxNonceGap": "100"
+	},
+	"trace": {
+		"jaegerEndpoint": "http://localhost:14268/api/traces",
+		"jaegerTracingEnabled": false,
+		"probabilitySampler": 1
 	}
 }`
 )
