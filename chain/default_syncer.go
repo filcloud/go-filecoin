@@ -9,6 +9,7 @@ import (
 	"github.com/ipfs/go-hamt-ipld"
 	logging "github.com/ipfs/go-log"
 	"github.com/pkg/errors"
+	"go.opencensus.io/trace"
 
 	"github.com/filecoin-project/go-filecoin/actor/builtin"
 	"github.com/filecoin-project/go-filecoin/consensus"
@@ -324,8 +325,16 @@ func (syncer *DefaultSyncer) widen(ctx context.Context, ts types.TipSet) (types.
 // represent a valid extension. It limits the length of new chains it will
 // attempt to validate and caches invalid blocks it has encountered to
 // help prevent DOS.
-func (syncer *DefaultSyncer) HandleNewTipset(ctx context.Context, tipsetCids types.SortedCidSet) error {
+func (syncer *DefaultSyncer) HandleNewTipset(ctx context.Context, tipsetCids types.SortedCidSet) (err error) {
 	logSyncer.Debugf("trying to sync %v\n", tipsetCids)
+	ctx, span := trace.StartSpan(ctx, "DefaultSyncer.HandleNewTipset")
+	defer func() {
+		if err != nil {
+			span.AddAttributes(trace.StringAttribute("error", err.Error()))
+		}
+		span.End()
+	}()
+	span.AddAttributes(trace.StringAttribute("tipset", tipsetCids.String()))
 
 	// This lock could last a long time as we fetch all the blocks needed to block the chain.
 	// This is justified because the app is pretty useless until it is synced.
