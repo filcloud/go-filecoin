@@ -13,6 +13,7 @@ import (
 	bstore "github.com/ipfs/go-ipfs-blockstore"
 	logging "github.com/ipfs/go-log"
 	"github.com/pkg/errors"
+	"go.opencensus.io/trace"
 
 	"github.com/filecoin-project/go-filecoin/actor"
 	"github.com/filecoin-project/go-filecoin/actor/builtin"
@@ -94,7 +95,15 @@ func NewDefaultStore(ds repo.Datastore, stateStore *hamt.CborIpldStore, genesisC
 // head does not link back to the expected genesis block, or the Store's
 // datastore does not store a link in the chain.  In case of error the caller
 // should not consider the chain useable and propagate the error.
-func (store *DefaultStore) Load(ctx context.Context) error {
+func (store *DefaultStore) Load(ctx context.Context) (err error) {
+	ctx, span := trace.StartSpan(ctx, "DefaultStore.Load")
+	defer func() {
+		if err != nil {
+			span.AddAttributes(trace.StringAttribute("error", err.Error()))
+		}
+		span.End()
+	}()
+
 	tipCids, err := store.loadHead()
 	if err != nil {
 		return err
@@ -251,7 +260,16 @@ func (store *DefaultStore) HasTipSetAndStatesWithParentsAndHeight(pTsKey string,
 }
 
 // GetBlocks retrieves the blocks referenced in the input cid set.
-func (store *DefaultStore) GetBlocks(ctx context.Context, cids types.SortedCidSet) ([]*types.Block, error) {
+func (store *DefaultStore) GetBlocks(ctx context.Context, cids types.SortedCidSet) (blks []*types.Block, err error) {
+	ctx, span := trace.StartSpan(ctx, "DefaultStore.GetBlocks")
+	defer func() {
+		if err != nil {
+			span.AddAttributes(trace.StringAttribute("error", err.Error()))
+		}
+		span.End()
+	}()
+	span.AddAttributes(trace.StringAttribute("tipset", cids.String()))
+
 	var blocks []*types.Block
 	for it := cids.Iter(); !it.Complete(); it.Next() {
 		id := it.Value()

@@ -109,7 +109,16 @@ func (syncer *DefaultSyncer) getBlksMaybeFromNet(ctx context.Context, blkCids []
 // blocks that do not form a tipset, or if any tipset has already been recorded
 // as the head of an invalid chain.  collectChain is the entrypoint to the code
 // that interacts with the network. It does NOT add tipsets to the chainStore..
-func (syncer *DefaultSyncer) collectChain(ctx context.Context, tipsetCids types.SortedCidSet) ([]types.TipSet, error) {
+func (syncer *DefaultSyncer) collectChain(ctx context.Context, tipsetCids types.SortedCidSet) (ts []types.TipSet, err error) {
+	ctx, span := trace.StartSpan(ctx, "DefaultSyncer.collectChain")
+	defer func() {
+		if err != nil {
+			span.AddAttributes(trace.StringAttribute("error", err.Error()))
+		}
+		span.End()
+	}()
+	span.AddAttributes(trace.StringAttribute("tipset", tipsetCids.String()))
+
 	var chain []types.TipSet
 	defer logSyncer.Info("chain synced")
 	for {
