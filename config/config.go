@@ -69,7 +69,7 @@ var Validators = map[string]func(string, string) error{
 
 func newDefaultDatastoreConfig() *DatastoreConfig {
 	return &DatastoreConfig{
-		Type: "badgerds",
+		Type: "s3ds", // "badgerds"
 		Path: "badger",
 	}
 }

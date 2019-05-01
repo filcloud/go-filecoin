@@ -329,16 +329,12 @@ func (r *FSRepo) loadVersion() (uint, error) {
 }
 
 func (r *FSRepo) openDatastore() error {
-	switch r.cfg.Datastore.Type {
-	case "badgerds":
-		ds, err := badgerds.NewDatastore(filepath.Join(r.repoPath, r.cfg.Datastore.Path), badgerOptions())
-		if err != nil {
-			return err
-		}
-		r.ds = ds
-	default:
-		return fmt.Errorf("unknown datastore type in config: %s", r.cfg.Datastore.Type)
+	ds, err := newDatastore(r.cfg.Datastore.Type, filepath.Join(r.repoPath, r.cfg.Datastore.Path))
+	if err != nil {
+		return err
 	}
+
+	r.ds = ds
 
 	return nil
 }
@@ -357,7 +353,7 @@ func (r *FSRepo) openKeystore() error {
 }
 
 func (r *FSRepo) openChainDatastore() error {
-	ds, err := badgerds.NewDatastore(filepath.Join(r.repoPath, chainDatastorePrefix), badgerOptions())
+	ds, err := newDatastore(r.cfg.Datastore.Type, filepath.Join(r.repoPath, chainDatastorePrefix))
 	if err != nil {
 		return err
 	}
@@ -369,7 +365,7 @@ func (r *FSRepo) openChainDatastore() error {
 
 func (r *FSRepo) openWalletDatastore() error {
 	// TODO: read wallet datastore info from config, use that to open it up
-	ds, err := badgerds.NewDatastore(filepath.Join(r.repoPath, walletDatastorePrefix), badgerOptions())
+	ds, err := newDatastore(r.cfg.Datastore.Type, filepath.Join(r.repoPath, walletDatastorePrefix))
 	if err != nil {
 		return err
 	}
@@ -380,7 +376,7 @@ func (r *FSRepo) openWalletDatastore() error {
 }
 
 func (r *FSRepo) openDealsDatastore() error {
-	ds, err := badgerds.NewDatastore(filepath.Join(r.repoPath, dealsDatastorePrefix), badgerOptions())
+	ds, err := newDatastore(r.cfg.Datastore.Type, filepath.Join(r.repoPath, dealsDatastorePrefix))
 	if err != nil {
 		return err
 	}
