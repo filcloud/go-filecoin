@@ -17,10 +17,12 @@ import (
 	logging "github.com/ipfs/go-log"
 	"github.com/minio/sha256-simd"
 	"github.com/pkg/errors"
+	"go.opencensus.io/trace"
 
 	"github.com/filecoin-project/go-filecoin/actor/builtin"
 	"github.com/filecoin-project/go-filecoin/actor/builtin/miner"
 	"github.com/filecoin-project/go-filecoin/address"
+	"github.com/filecoin-project/go-filecoin/metrics/tracing"
 	"github.com/filecoin-project/go-filecoin/proofs"
 	"github.com/filecoin-project/go-filecoin/state"
 	"github.com/filecoin-project/go-filecoin/types"
@@ -135,8 +137,6 @@ func (c *Expected) NewValidTipSet(ctx context.Context, blks []*types.Block) (typ
 // previous block has been validated. TODO: not yet signature checking
 func (c *Expected) validateBlockStructure(ctx context.Context, b *types.Block) error {
 	// TODO: validate signature on block
-	ctx = log.Start(ctx, "Expected.validateBlockStructure")
-	log.LogKV(ctx, "ValidateBlockStructure", b.Cid().String())
 	if !b.StateRoot.Defined() {
 		return fmt.Errorf("block has nil StateRoot")
 	}
@@ -167,7 +167,7 @@ func (c *Expected) Weight(ctx context.Context, ts types.TipSet, pSt state.Tree) 
 	if err != nil {
 		return uint64(0), err
 	}
-	floatTotalBytes := new(big.Float).SetInt64(int64(totalBytes))
+	floatTotalBytes := new(big.Float).SetInt(totalBytes.BigInt())
 	floatECV := new(big.Float).SetInt64(int64(ECV))
 	floatECPrM := new(big.Float).SetInt64(int64(ECPrM))
 	for _, blk := range ts.ToSlice() {
@@ -175,7 +175,7 @@ func (c *Expected) Weight(ctx context.Context, ts types.TipSet, pSt state.Tree) 
 		if err != nil {
 			return uint64(0), err
 		}
-		floatOwnBytes := new(big.Float).SetInt64(int64(minerBytes))
+		floatOwnBytes := new(big.Float).SetInt(minerBytes.BigInt())
 		wBlk := new(big.Float)
 		wBlk.Quo(floatOwnBytes, floatTotalBytes)
 		wBlk.Mul(wBlk, floatECPrM) // Power addition
@@ -238,9 +238,12 @@ func (c *Expected) IsHeavier(ctx context.Context, a, b types.TipSet, aSt, bSt st
 // starting state and a tipset to a new state.  It errors if the tipset was not
 // mined according to the EC rules, or if running the messages in the tipset
 // results in an error.
-func (c *Expected) RunStateTransition(ctx context.Context, ts types.TipSet, ancestors []types.TipSet, pSt state.Tree) (state.Tree, error) {
-	err := c.validateMining(ctx, pSt, ts, ancestors[0])
-	if err != nil {
+func (c *Expected) RunStateTransition(ctx context.Context, ts types.TipSet, ancestors []types.TipSet, pSt state.Tree) (st state.Tree, err error) {
+	ctx, span := trace.StartSpan(ctx, "Expected.RunStateTransition")
+	span.AddAttributes(trace.StringAttribute("tipset", ts.String()))
+	defer tracing.AddErrorEndSpan(ctx, span, &err)
+
+	if err := c.validateMining(ctx, pSt, ts, ancestors[0]); err != nil {
 		return nil, err
 	}
 
@@ -258,7 +261,7 @@ func (c *Expected) RunStateTransition(ctx context.Context, ts types.TipSet, ance
 	}
 
 	vms := vm.NewStorageMap(c.bstore)
-	st, err := c.runMessages(ctx, pSt, vms, ts, ancestors)
+	st, err = c.runMessages(ctx, pSt, vms, ts, ancestors)
 	if err != nil {
 		return nil, err
 	}
@@ -319,12 +322,12 @@ func IsWinningTicket(ctx context.Context, bs blockstore.Blockstore, ptv PowerTab
 
 // CompareTicketPower abstracts the actual comparison logic so it can be used by some test
 // helpers
-func CompareTicketPower(ticket types.Signature, minerPower uint64, totalPower uint64) bool {
+func CompareTicketPower(ticket types.Signature, minerPower *types.BytesAmount, totalPower *types.BytesAmount) bool {
 	lhs := &big.Int{}
 	lhs.SetBytes(ticket)
-	lhs.Mul(lhs, big.NewInt(int64(totalPower)))
+	lhs.Mul(lhs, totalPower.BigInt())
 	rhs := &big.Int{}
-	rhs.Mul(big.NewInt(int64(minerPower)), ticketDomain)
+	rhs.Mul(minerPower.BigInt(), ticketDomain)
 	return lhs.Cmp(rhs) < 0
 }
 

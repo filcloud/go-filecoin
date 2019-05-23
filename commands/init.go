@@ -51,11 +51,19 @@ var initCmd = &cmds.Command{
 		if err := re.Emit(fmt.Sprintf("initializing filecoin node at %s\n", repoDir)); err != nil {
 			return err
 		}
-		repoDir = paths.GetRepoPath(repoDir)
-		rep, err := repo.CreateRepo(repoDir, newConfig)
+		repoDir, err = paths.GetRepoPath(repoDir)
 		if err != nil {
 			return err
 		}
+
+		if err := repo.InitFSRepo(repoDir, newConfig); err != nil {
+			return err
+		}
+		rep, err := repo.OpenFSRepo(repoDir)
+		if err != nil {
+			return err
+		}
+
 		// The only error Close can return is that the repo has already been closed
 		defer rep.Close() // nolint: errcheck
 

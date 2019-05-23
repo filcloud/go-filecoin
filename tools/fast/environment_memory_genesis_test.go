@@ -38,7 +38,9 @@ func TestEnvironmentMemoryGenesis(t *testing.T) {
 
 		testDir, err := ioutil.TempDir(".", "environmentTest")
 		require.NoError(t, err)
-		defer os.RemoveAll(testDir)
+		defer func() {
+			require.NoError(t, os.RemoveAll(testDir))
+		}()
 
 		env, err := NewEnvironmentMemoryGenesis(big.NewInt(100000), testDir, types.TestProofsMode)
 		localenv := env.(*EnvironmentMemoryGenesis)
@@ -52,6 +54,7 @@ func TestEnvironmentMemoryGenesis(t *testing.T) {
 
 		// did we teardown correctly?
 		assert.NoError(t, env.Teardown(ctx))
+		assert.Equal(t, 0, len(env.Processes()))
 		_, existsErr := os.Stat(localenv.location)
 		assert.True(t, os.IsNotExist(existsErr))
 	})
@@ -61,7 +64,9 @@ func TestEnvironmentMemoryGenesis(t *testing.T) {
 
 		testDir, err := ioutil.TempDir(".", "environmentTest")
 		require.NoError(t, err)
-		defer os.RemoveAll(testDir)
+		defer func() {
+			require.NoError(t, os.RemoveAll(testDir))
+		}()
 
 		env, err := NewEnvironmentMemoryGenesis(big.NewInt(100000), testDir, types.TestProofsMode)
 		require.NoError(t, err)

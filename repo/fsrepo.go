@@ -33,29 +33,23 @@ const (
 	dealsDatastorePrefix   = "deals"
 	snapshotStorePrefix    = "snapshots"
 	snapshotFilenamePrefix = "snapshot"
-	DefaultRepoDir         = "repo"
-)
 
-// NoRepoError is returned when trying to open a repo where one does not exist
-type NoRepoError struct {
-	Path string
-}
+	// DefaultRepoDir is the default directory of the filecoin repo
+	DefaultRepoDir = "repo"
+)
 
 var log = logging.Logger("repo")
 
-func (err NoRepoError) Error() string {
-	return fmt.Sprintf("no filecoin repo found in %s.\nplease run: 'go-filecoin init [--repodir=%s]'", err.Path, err.Path)
-}
-
 // FSRepo is a repo implementation backed by a filesystem.
 type FSRepo struct {
-	repoPath string
-
+	// Path to the repo root directory.
+	path    string
 	version uint
 
 	// lk protects the config file
-	lk       sync.RWMutex
-	cfg      *config.Config
+	lk  sync.RWMutex
+	cfg *config.Config
+
 	ds       Datastore
 	keystore keystore.Keystore
 	walletDs Datastore
@@ -68,12 +62,34 @@ type FSRepo struct {
 
 var _ Repo = (*FSRepo)(nil)
 
-// CreateRepo provides a quick shorthand for initializing and opening a repo
-func CreateRepo(repoPath string, cfg *config.Config) (*FSRepo, error) {
-	if err := InitFSRepo(repoPath, cfg); err != nil {
-		return nil, err
+// InitFSRepo initializes a new repo at a target path, establishing a provided configuration.
+// The target path must not exist, or must reference an empty, writable directory.
+func InitFSRepo(targetPath string, cfg *config.Config) error {
+	repoPath, err := homedir.Expand(targetPath)
+	if err != nil {
+		return err
 	}
-	return OpenFSRepo(repoPath)
+
+	if err := ensureWritableDirectory(repoPath); err != nil {
+		return errors.Wrap(err, "no writable directory")
+	}
+
+	empty, err := isEmptyDir(repoPath)
+	if err != nil {
+		return errors.Wrapf(err, "failed to list repo directory %s", repoPath)
+	}
+	if !empty {
+		return fmt.Errorf("refusing to initialize repo in non-empty directory %s", repoPath)
+	}
+
+	if err := WriteVersion(repoPath, Version); err != nil {
+		return errors.Wrap(err, "initializing repo version failed")
+	}
+
+	if err := initConfig(repoPath, cfg); err != nil {
+		return errors.Wrap(err, "initializing config file failed")
+	}
+	return nil
 }
 
 // OpenFSRepo opens an already initialized fsrepo at the given path
@@ -83,24 +99,24 @@ func OpenFSRepo(repoPath string) (*FSRepo, error) {
 		return nil, err
 	}
 
-	isInit, err := isInitialized(repoPath)
+	hasConfig, err := hasConfig(repoPath)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to check if repo was initialized")
+		return nil, errors.Wrap(err, "failed to check for repo config")
 	}
 
-	if !isInit {
-		return nil, &NoRepoError{repoPath}
+	if !hasConfig {
+		return nil, errors.Errorf("no repo found at %s; run: 'go-filecoin init [--repodir=%s]'", repoPath, repoPath)
 	}
 
-	r := &FSRepo{repoPath: repoPath}
+	r := &FSRepo{path: repoPath}
 
-	r.lockfile, err = lockfile.Lock(r.repoPath, lockFile)
+	r.lockfile, err = lockfile.Lock(r.path, lockFile)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to take repo lock")
 	}
 
 	if err := r.loadFromDisk(); err != nil {
-		r.lockfile.Close() // nolint: errcheck
+		_ = r.lockfile.Close()
 		return nil, err
 	}
 
@@ -149,37 +165,6 @@ func (r *FSRepo) loadFromDisk() error {
 	return nil
 }
 
-// InitFSRepo initializes an fsrepo at the given path using the given configuration
-func InitFSRepo(repoPath string, cfg *config.Config) error {
-	repoPath, err := homedir.Expand(repoPath)
-	if err != nil {
-		return err
-	}
-
-	if err := checkWritable(repoPath); err != nil {
-		return errors.Wrap(err, "checking writability of repo path failed")
-	}
-
-	init, err := isInitialized(repoPath)
-	if err != nil {
-		return err
-	}
-
-	if init {
-		return fmt.Errorf("repo already initialized")
-	}
-
-	if err := initVersion(repoPath, Version); err != nil {
-		return errors.Wrap(err, "initializing repo version failed")
-	}
-
-	if err := initConfig(repoPath, cfg); err != nil {
-		return errors.Wrap(err, "initializing config file failed")
-	}
-
-	return nil
-}
-
 // Config returns the configuration object.
 func (r *FSRepo) Config() *config.Config {
 	r.lk.RLock()
@@ -197,7 +182,7 @@ func (r *FSRepo) ReplaceConfig(cfg *config.Config) error {
 	defer r.lk.Unlock()
 
 	r.cfg = cfg
-	tmp := filepath.Join(r.repoPath, tempConfigFilename)
+	tmp := filepath.Join(r.path, tempConfigFilename)
 	err := os.RemoveAll(tmp)
 	if err != nil {
 		return err
@@ -206,13 +191,13 @@ func (r *FSRepo) ReplaceConfig(cfg *config.Config) error {
 	if err != nil {
 		return err
 	}
-	return os.Rename(tmp, filepath.Join(r.repoPath, configFilename))
+	return os.Rename(tmp, filepath.Join(r.path, configFilename))
 }
 
 // SnapshotConfig stores a copy `cfg` in <repo_path>/snapshots/ appending the
 // time of snapshot to the filename.
 func (r *FSRepo) SnapshotConfig(cfg *config.Config) error {
-	snapshotFile := filepath.Join(r.repoPath, snapshotStorePrefix, genSnapshotFileName())
+	snapshotFile := filepath.Join(r.path, snapshotStorePrefix, genSnapshotFileName())
 	if fileExists(snapshotFile) {
 		// this should never happen
 		return fmt.Errorf("file already exists: %s", snapshotFile)
@@ -284,25 +269,26 @@ func (r *FSRepo) removeFile(path string) error {
 }
 
 func (r *FSRepo) removeAPIFile() error {
-	return r.removeFile(filepath.Join(r.repoPath, apiFile))
+	return r.removeFile(filepath.Join(r.path, apiFile))
 }
 
-func isInitialized(p string) (bool, error) {
+// Tests whether a repo directory contains the expected config file.
+func hasConfig(p string) (bool, error) {
 	configPath := filepath.Join(p, configFilename)
 
 	_, err := os.Lstat(configPath)
 	switch {
-	case os.IsNotExist(err):
-		return false, nil
 	case err == nil:
 		return true, nil
+	case os.IsNotExist(err):
+		return false, nil
 	default:
 		return false, err
 	}
 }
 
 func (r *FSRepo) loadConfig() error {
-	configFile := filepath.Join(r.repoPath, configFilename)
+	configFile := filepath.Join(r.path, configFilename)
 
 	cfg, err := config.ReadFile(configFile)
 	if err != nil {
@@ -315,7 +301,7 @@ func (r *FSRepo) loadConfig() error {
 
 func (r *FSRepo) loadVersion() (uint, error) {
 	// TODO: limited file reading, to avoid attack vector
-	file, err := ioutil.ReadFile(filepath.Join(r.repoPath, versionFilename))
+	file, err := ioutil.ReadFile(filepath.Join(r.path, versionFilename))
 	if err != nil {
 		return 0, err
 	}
@@ -329,7 +315,7 @@ func (r *FSRepo) loadVersion() (uint, error) {
 }
 
 func (r *FSRepo) openDatastore() error {
-	ds, err := newDatastore(r.cfg.Datastore.Type, filepath.Join(r.repoPath, r.cfg.Datastore.Path))
+	ds, err := newDatastore(r.cfg.Datastore.Type, filepath.Join(r.path, r.cfg.Datastore.Path))
 	if err != nil {
 		return err
 	}
@@ -340,7 +326,7 @@ func (r *FSRepo) openDatastore() error {
 }
 
 func (r *FSRepo) openKeystore() error {
-	ksp := filepath.Join(r.repoPath, "keystore")
+	ksp := filepath.Join(r.path, "keystore")
 
 	ks, err := keystore.NewFSKeystore(ksp)
 	if err != nil {
@@ -353,7 +339,7 @@ func (r *FSRepo) openKeystore() error {
 }
 
 func (r *FSRepo) openChainDatastore() error {
-	ds, err := newDatastore(r.cfg.Datastore.Type, filepath.Join(r.repoPath, chainDatastorePrefix))
+	ds, err := newDatastore(r.cfg.Datastore.Type, filepath.Join(r.path, chainDatastorePrefix))
 	if err != nil {
 		return err
 	}
@@ -365,7 +351,7 @@ func (r *FSRepo) openChainDatastore() error {
 
 func (r *FSRepo) openWalletDatastore() error {
 	// TODO: read wallet datastore info from config, use that to open it up
-	ds, err := newDatastore(r.cfg.Datastore.Type, filepath.Join(r.repoPath, walletDatastorePrefix))
+	ds, err := newDatastore(r.cfg.Datastore.Type, filepath.Join(r.path, walletDatastorePrefix))
 	if err != nil {
 		return err
 	}
@@ -376,7 +362,7 @@ func (r *FSRepo) openWalletDatastore() error {
 }
 
 func (r *FSRepo) openDealsDatastore() error {
-	ds, err := newDatastore(r.cfg.Datastore.Type, filepath.Join(r.repoPath, dealsDatastorePrefix))
+	ds, err := newDatastore(r.cfg.Datastore.Type, filepath.Join(r.path, dealsDatastorePrefix))
 	if err != nil {
 		return err
 	}
@@ -386,7 +372,8 @@ func (r *FSRepo) openDealsDatastore() error {
 	return nil
 }
 
-func initVersion(p string, version uint) error {
+// WriteVersion writes the given version to the repo version file.
+func WriteVersion(p string, version uint) error {
 	return ioutil.WriteFile(filepath.Join(p, versionFilename), []byte(strconv.Itoa(int(version))), 0644)
 }
 
@@ -402,29 +389,45 @@ func initConfig(p string, cfg *config.Config) error {
 
 	// make the snapshot dir
 	snapshotDir := filepath.Join(p, snapshotStorePrefix)
-	return checkWritable(snapshotDir)
+	return ensureWritableDirectory(snapshotDir)
 }
 
 func genSnapshotFileName() string {
 	return fmt.Sprintf("%s-%d.json", snapshotFilenamePrefix, time.Now().UTC().UnixNano())
 }
 
-func checkWritable(dir string) error {
-	_, err := os.Stat(dir)
+// Ensures that path points to a read/writable directory, creating it if necessary.
+func ensureWritableDirectory(path string) error {
+	// Attempt to create the requested directory, accepting that something might already be there.
+	err := os.Mkdir(path, 0775)
+
 	if err == nil {
-		return nil
+		return nil // Skip the checks below, we just created it.
+	} else if !os.IsExist(err) {
+		return errors.Wrapf(err, "failed to create directory %s", path)
 	}
 
-	if os.IsNotExist(err) {
-		// dir doesnt exist, check that we can create it
-		return os.Mkdir(dir, 0775)
+	// Inspect existing directory.
+	stat, err := os.Stat(path)
+	if err != nil {
+		return errors.Wrapf(err, "failed to stat path \"%s\"", path)
 	}
-
-	if os.IsPermission(err) {
-		return errors.Wrapf(err, "cannot write to %s, incorrect permissions", dir)
+	if !stat.IsDir() {
+		return errors.Errorf("%s is not a directory", path)
 	}
+	if (stat.Mode() & 0600) != 0600 {
+		return errors.Errorf("insufficient permissions for path %s, got %04o need %04o", path, stat.Mode(), 0600)
+	}
+	return nil
+}
 
-	return err
+// Tests whether the directory at path is empty
+func isEmptyDir(path string) (bool, error) {
+	infos, err := ioutil.ReadDir(path)
+	if err != nil {
+		return false, err
+	}
+	return len(infos) == 0, nil
 }
 
 func fileExists(file string) bool {
@@ -438,7 +441,7 @@ func fileExists(file string) bool {
 // SetAPIAddr writes the address to the API file. SetAPIAddr expects parameter
 // `port` to be of the form `:<port>`.
 func (r *FSRepo) SetAPIAddr(maddr string) error {
-	f, err := os.Create(filepath.Join(r.repoPath, apiFile))
+	f, err := os.Create(filepath.Join(r.path, apiFile))
 	if err != nil {
 		return errors.Wrap(err, "could not create API file")
 	}
@@ -461,6 +464,12 @@ func (r *FSRepo) SetAPIAddr(maddr string) error {
 	return nil
 }
 
+// Path returns the path the fsrepo is at
+func (r *FSRepo) Path() (string, error) {
+	return r.path, nil
+}
+
+// APIAddrFromRepoPath returns the api addr from the filecoin repo
 func APIAddrFromRepoPath(repoPath string) (string, error) {
 	repoPath, err := homedir.Expand(repoPath)
 	if err != nil {
@@ -485,11 +494,21 @@ func apiAddrFromFile(apiFilePath string) (string, error) {
 
 // APIAddr reads the FSRepo's api file and returns the api address
 func (r *FSRepo) APIAddr() (string, error) {
-	return apiAddrFromFile(filepath.Join(filepath.Clean(r.repoPath), apiFile))
+	return apiAddrFromFile(filepath.Join(filepath.Clean(r.path), apiFile))
 }
 
 func badgerOptions() *badgerds.Options {
 	result := &badgerds.DefaultOptions
 	result.Truncate = true
 	return result
+}
+
+// ReadVersion returns the unparsed (string) version
+// from the version file in the specified repo.
+func ReadVersion(repoPath string) (string, error) {
+	file, err := ioutil.ReadFile(filepath.Join(repoPath, versionFilename))
+	if err != nil {
+		return "", err
+	}
+	return strings.Trim(string(file), "\n"), nil
 }

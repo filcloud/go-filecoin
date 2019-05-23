@@ -59,7 +59,7 @@ func RequireNewAccountActor(t *testing.T, value *types.AttoFIL) *actor.Actor {
 func RequireNewMinerActor(t *testing.T, vms vm.StorageMap, addr address.Address, owner address.Address, key []byte, pledge uint64, pid peer.ID, coll *types.AttoFIL) *actor.Actor {
 	act := actor.NewActor(types.MinerActorCodeCid, types.NewZeroAttoFIL())
 	storage := vms.NewStorage(addr, act)
-	initializerData := miner.NewState(owner, key, big.NewInt(int64(pledge)), pid, coll)
+	initializerData := miner.NewState(owner, key, big.NewInt(int64(pledge)), pid, coll, types.OneKiBSectorSize)
 	err := (&miner.Actor{}).InitializeState(storage, initializerData)
 	require.NoError(t, err)
 	require.NoError(t, storage.Flush())
@@ -100,14 +100,17 @@ func NewTestMessagePoolAPI(h uint64) *TestMessagePoolAPI {
 	return &TestMessagePoolAPI{Height: h}
 }
 
+// MockMessagePoolValidator is a mock validator
 type MockMessagePoolValidator struct {
 	Valid bool
 }
 
+// NewMockMessagePoolValidator creates a MockMessagePoolValidator
 func NewMockMessagePoolValidator() *MockMessagePoolValidator {
 	return &MockMessagePoolValidator{Valid: true}
 }
 
+// Validate returns true if the mock validator is set to validate the message
 func (v *MockMessagePoolValidator) Validate(ctx context.Context, msg *types.SignedMessage) error {
 	if v.Valid {
 		return nil

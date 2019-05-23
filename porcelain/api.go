@@ -55,7 +55,7 @@ func (a *API) CreatePayments(ctx context.Context, config CreatePaymentsParams) (
 }
 
 // DealGet returns a single deal matching a given cid or an error
-func (a *API) DealGet(proposalCid cid.Cid) *storagedeal.Deal {
+func (a *API) DealGet(proposalCid cid.Cid) (*storagedeal.Deal, error) {
 	return DealGet(a, proposalCid)
 }
 
@@ -124,6 +124,16 @@ func (a *API) MinerGetOwnerAddress(ctx context.Context, minerAddr address.Addres
 	return MinerGetOwnerAddress(ctx, a, minerAddr)
 }
 
+// MinerGetSectorSize queries for the sector size of the given miner.
+func (a *API) MinerGetSectorSize(ctx context.Context, minerAddr address.Address) (*types.BytesAmount, error) {
+	return MinerGetSectorSize(ctx, a, minerAddr)
+}
+
+// MinerGetLastCommittedSectorID queries for the sector size of the given miner.
+func (a *API) MinerGetLastCommittedSectorID(ctx context.Context, minerAddr address.Address) (uint64, error) {
+	return MinerGetLastCommittedSectorID(ctx, a, minerAddr)
+}
+
 // MinerGetKey queries for the public key of the given miner
 func (a *API) MinerGetKey(ctx context.Context, minerAddr address.Address) ([]byte, error) {
 	return MinerGetKey(ctx, a, minerAddr)
@@ -151,7 +161,7 @@ func (a *API) MinerPreviewSetPrice(
 	return MinerPreviewSetPrice(ctx, a, from, miner, price, expiry)
 }
 
-// ProtocolParams fetches the current protocol configuration parameters.
+// ProtocolParameters fetches the current protocol configuration parameters.
 func (a *API) ProtocolParameters(ctx context.Context) (*ProtocolParams, error) {
 	return ProtocolParameters(ctx, a)
 }
