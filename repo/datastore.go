@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	badgerds "github.com/ipfs/go-ds-badger"
 	s3ds "github.com/ipfs/go-ds-s3"
@@ -15,16 +16,16 @@ const filS3EndpointVar = "FIL_S3_ENDPOINT"
 const filS3RegionVar = "FIL_S3_REGION"
 const filS3BucketVar = "FIL_S3_BUCKET"
 
-func newDatastore(dsType, path string) (Datastore, error) {
+func newDatastore(dsType, repoPath, path string) (Datastore, error) {
 	switch dsType {
 	case "badgerds":
-		ds, err := badgerds.NewDatastore(path, badgerOptions())
+		ds, err := badgerds.NewDatastore(filepath.Join(repoPath, path), badgerOptions())
 		if err != nil {
 			return nil, err
 		}
 		return ds, nil
 	case "s3ds":
-		cfg, err := s3dsConfig()
+		cfg, err := s3dsConfig(path)
 		if err != nil {
 			return nil, err
 		}
@@ -38,7 +39,7 @@ func newDatastore(dsType, path string) (Datastore, error) {
 	}
 }
 
-func s3dsConfig() (*s3ds.Config, error) {
+func s3dsConfig(path string) (*s3ds.Config, error) {
 	accessKey := os.Getenv(filS3AccessKeyVar)
 	secretKey := os.Getenv(filS3SecretKeyVar)
 	if accessKey == "" || secretKey == "" {
@@ -62,5 +63,6 @@ func s3dsConfig() (*s3ds.Config, error) {
 		RegionEndpoint: endpoint,
 		Region:         region,
 		Bucket:         bucket,
+		RootDirectory:  path,
 	}, nil
 }

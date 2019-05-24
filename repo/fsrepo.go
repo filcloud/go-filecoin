@@ -315,7 +315,7 @@ func (r *FSRepo) loadVersion() (uint, error) {
 }
 
 func (r *FSRepo) openDatastore() error {
-	ds, err := newDatastore(r.cfg.Datastore.Type, filepath.Join(r.path, r.cfg.Datastore.Path))
+	ds, err := newDatastore(r.cfg.Datastore.Type, r.path, r.cfg.Datastore.Path)
 	if err != nil {
 		return err
 	}
@@ -339,7 +339,7 @@ func (r *FSRepo) openKeystore() error {
 }
 
 func (r *FSRepo) openChainDatastore() error {
-	ds, err := newDatastore(r.cfg.Datastore.Type, filepath.Join(r.path, chainDatastorePrefix))
+	ds, err := newDatastore(r.cfg.Datastore.Type, r.path, chainDatastorePrefix)
 	if err != nil {
 		return err
 	}
@@ -351,7 +351,7 @@ func (r *FSRepo) openChainDatastore() error {
 
 func (r *FSRepo) openWalletDatastore() error {
 	// TODO: read wallet datastore info from config, use that to open it up
-	ds, err := newDatastore(r.cfg.Datastore.Type, filepath.Join(r.path, walletDatastorePrefix))
+	ds, err := newDatastore(r.cfg.Datastore.Type, r.path, walletDatastorePrefix)
 	if err != nil {
 		return err
 	}
@@ -362,7 +362,7 @@ func (r *FSRepo) openWalletDatastore() error {
 }
 
 func (r *FSRepo) openDealsDatastore() error {
-	ds, err := newDatastore(r.cfg.Datastore.Type, filepath.Join(r.path, dealsDatastorePrefix))
+	ds, err := newDatastore(r.cfg.Datastore.Type, r.path, dealsDatastorePrefix)
 	if err != nil {
 		return err
 	}
