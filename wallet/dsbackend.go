@@ -53,7 +53,8 @@ func NewDSBackend(ds repo.Datastore) (*DSBackend, error) {
 
 	cache := make(map[address.Address]struct{})
 	for _, el := range list {
-		parsedAddr, err := address.NewFromString(strings.Trim(el.Key, "/"))
+		keys := strings.Split(strings.Trim(el.Key, "/"), "/")
+		parsedAddr, err := address.NewFromString(keys[len(keys)-1])
 		if err != nil {
 			return nil, errors.Wrapf(err, "trying to restore invalid address: %s", el.Key)
 		}
