@@ -8,6 +8,11 @@ require (
 	github.com/Azure/go-ansiterm v0.0.0-20170929234023-d6e3b3328b78 // indirect
 	github.com/Microsoft/go-winio v0.4.12 // indirect
 	github.com/Workiva/go-datastructures v1.0.50
+	github.com/btcsuite/goleveldb v1.0.0 // indirect
+	github.com/cochainio/orm v0.0.0-20190912074559-91665d16d22e
+	github.com/coreos/bbolt v1.3.3 // indirect
+	github.com/coreos/etcd v3.3.13+incompatible // indirect
+	github.com/coreos/go-systemd v0.0.0-20190719114852-fd7a80b32e1f // indirect
 	github.com/cskr/pubsub v1.0.2
 	github.com/dgraph-io/badger v1.6.0 // indirect
 	github.com/docker/distribution v2.7.1+incompatible // indirect
@@ -106,3 +111,5 @@ require (
 replace github.com/filecoin-project/go-bls-sigs => ./go-bls-sigs
 
 replace github.com/filecoin-project/go-sectorbuilder => ./go-sectorbuilder
+
+replace github.com/cochainio/orm => ../../cochainio/orm

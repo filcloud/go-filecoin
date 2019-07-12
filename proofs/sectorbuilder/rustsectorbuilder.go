@@ -80,7 +80,7 @@ func NewRustSectorBuilder(cfg RustSectorBuilderConfig) (*RustSectorBuilder, erro
 		stagedSectorIDs[idx] = m.SectorID
 	}
 
-	sb.sealStatusPoller = newSealStatusPoller(stagedSectorIDs, sb.sectorSealResults, sb.findSealedSectorMetadata)
+	sb.sealStatusPoller = newSealStatusPoller(stagedSectorIDs, sb.sectorSealResults, sb.FindSealedSectorMetadata)
 
 	return sb, nil
 }
@@ -170,7 +170,7 @@ func (sb *RustSectorBuilder) AddPiece(ctx context.Context, pieceRef cid.Cid, pie
 	}
 }
 
-func (sb *RustSectorBuilder) findSealedSectorMetadata(sectorID uint64) (*SealedSectorMetadata, error) {
+func (sb *RustSectorBuilder) FindSealedSectorMetadata(sectorID uint64) (*SealedSectorMetadata, error) {
 	status, err := go_sectorbuilder.GetSectorSealingStatusByID(sb.ptr, sectorID)
 	if err != nil {
 		return nil, err

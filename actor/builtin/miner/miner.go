@@ -22,12 +22,6 @@ import (
 
 var log = logging.Logger("miner-actor")
 
-func init() {
-	cbor.RegisterCborType(cbor.BigIntAtlasEntry)
-	cbor.RegisterCborType(State{})
-	cbor.RegisterCborType(Ask{})
-}
-
 // LargestSectorSizeProvingPeriodBlocks defines the number of blocks in a
 // proving period for a miner configured to use the largest sector size
 // supported by the network.
@@ -98,6 +92,8 @@ const (
 	PoStStateUnrecoverable
 )
 
+var HandleAddMinerAsk func(miner address.Address, a *Ask)
+
 // Actor is the miner actor.
 //
 // If `Bootstrap` is `true`, the miner will not verify seal proofs. This is
@@ -112,86 +108,11 @@ type Actor struct {
 	Bootstrap bool
 }
 
-// Ask is a price advertisement by the miner
-type Ask struct {
-	Price  types.AttoFIL
-	Expiry *types.BlockHeight
-	ID     *big.Int
-}
+type Ask = types.Ask
+type State = types.MinerState
+type SectorSet = types.SectorSet
 
-// State is the miner actors storage.
-type State struct {
-	// Owner is the address of the account that owns this miner. Income and returned
-	// collateral are paid to this address. This address is also allowed todd change the
-	// worker address for the miner.
-	Owner address.Address
-
-	// Worker is the address of the worker account for this miner.
-	// This will be the key that is used to sign blocks created by this miner, and
-	// sign messages sent on behalf of this miner to commit sectors, submit PoSts, and
-	// other day to day miner activities.
-	Worker address.Address
-
-	// PeerID references the libp2p identity that the miner is operating.
-	PeerID peer.ID
-
-	// ActiveCollateral is the amount of collateral currently committed to live
-	// storage.
-	ActiveCollateral types.AttoFIL
-
-	// Asks is the set of asks this miner has open
-	Asks      []*Ask
-	NextAskID *big.Int
-
-	// SectorCommitments maps sector id to commitments, for all sectors this
-	// miner has committed.  Sector ids are removed from this collection
-	// when they are included in the done or fault parameters of submitPoSt.
-	// Due to a bug in refmt, the sector id-keys need to be
-	// stringified.
-	//
-	// See also: https://github.com/polydawn/refmt/issues/35
-	SectorCommitments SectorSet
-
-	// Faults reported since last PoSt
-	CurrentFaultSet types.IntSet
-
-	// Faults reported since last PoSt, but too late to be included in the current PoSt
-	NextFaultSet types.IntSet
-
-	// NextDoneSet is a set of sector ids reported during the last PoSt
-	// submission as being 'done'.  The collateral for them is still being
-	// held until the next PoSt submission in case early sector removal
-	// penalization is needed.
-	NextDoneSet types.IntSet
-
-	// ProvingSet is the set of sector ids of sectors this miner is
-	// currently required to prove.
-	ProvingSet types.IntSet
-
-	LastUsedSectorID uint64
-
-	// ProvingPeriodEnd is the block height at the end of the current proving period.
-	// This is the last round in which a proof will be considered to be on-time.
-	ProvingPeriodEnd *types.BlockHeight
-
-	// The amount of space proven to the network by this miner in the
-	// latest proving period.
-	Power *types.BytesAmount
-
-	// SectorSize is the amount of space in each sector committed to the network
-	// by this miner.
-	SectorSize *types.BytesAmount
-
-	// SlashedSet is a set of sector ids that have been slashed
-	SlashedSet types.IntSet
-
-	// SlashedAt is the time at which this miner was slashed
-	SlashedAt *types.BlockHeight
-
-	// OwedStorageCollateral is the collateral for sectors that have been slashed.
-	// This collateral can be collected from arbitrated deals, but not de-pledged.
-	OwedStorageCollateral types.AttoFIL
-}
+var NewSectorSet = types.NewSectorSet
 
 // NewActor returns a new miner actor with the provided balance.
 func NewActor() *actor.Actor {
@@ -221,7 +142,7 @@ func NewState(owner, worker address.Address, pid peer.ID, sectorSize *types.Byte
 func (ma *Actor) InitializeState(storage exec.Storage, initializerData interface{}) error {
 	minerState, ok := initializerData.(*State)
 	if !ok {
-		return errors.NewFaultError("Initial state to miner actor is not a miner.State struct")
+		return errors.NewFaultError("Initial state to miner actor is not a State struct")
 	}
 
 	stateBytes, err := cbor.DumpObject(minerState)
@@ -336,6 +257,10 @@ var minerExports = exec.Exports{
 		Params: []abi.Type{},
 		Return: []abi.Type{abi.AttoFIL},
 	},
+	"getState": &exec.FunctionSignature{
+		Params: nil,
+		Return: []abi.Type{abi.MinerState},
+	},
 }
 
 // Exports returns the miner actors exported functions.
@@ -346,6 +271,22 @@ func (ma *Actor) Exports() exec.Exports {
 //
 // Exported actor methods
 //
+
+func (ma *Actor) GetState(ctx exec.VMContext) (types.MinerState, uint8, error) {
+	if err := ctx.Charge(actor.DefaultGasCost); err != nil {
+		return types.MinerState{}, exec.ErrInsufficientGas, errors.RevertErrorWrap(err, "Insufficient gas")
+	}
+
+	var state State
+	_, err := actor.WithState(ctx, &state, func() (interface{}, error) {
+		return nil, nil
+	})
+	if err != nil {
+		return types.MinerState{}, errors.CodeError(err), err
+	}
+
+	return state, 0, nil
+}
 
 // AddAsk adds an ask to this miners ask list
 func (ma *Actor) AddAsk(ctx exec.VMContext, price types.AttoFIL, expiry *big.Int) (*big.Int, uint8,
@@ -382,6 +323,10 @@ func (ma *Actor) AddAsk(ctx exec.VMContext, price types.AttoFIL, expiry *big.Int
 			Expiry: ctx.BlockHeight().Add(expiryBH),
 			ID:     id,
 		})
+
+		if HandleAddMinerAsk != nil {
+			HandleAddMinerAsk(ctx.Message().To, state.Asks[len(state.Asks)-1])
+		}
 
 		return id, nil
 	})
@@ -1028,11 +973,11 @@ func (ma *Actor) SubmitPoSt(ctx exec.VMContext, poStProof types.PoStProof, fault
 
 		// Update SectorSet, DoneSet and ProvingSet
 		if err = state.SectorCommitments.Drop(done.Values()); err != nil {
-			return nil, err
+			return nil, Errors[ErrInvalidSector]
 		}
 
 		if err = state.SectorCommitments.Drop(faults.SectorIds.Values()); err != nil {
-			return nil, err
+			return nil, Errors[ErrInvalidSector]
 		}
 
 		sectorIDsToProve, err := state.SectorCommitments.IDs()

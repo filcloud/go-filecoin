@@ -14,6 +14,7 @@ import (
 	"github.com/filecoin-project/go-filecoin/metrics"
 	"github.com/filecoin-project/go-filecoin/metrics/tracing"
 	"github.com/filecoin-project/go-filecoin/net"
+	"github.com/filecoin-project/go-filecoin/sink"
 	"github.com/filecoin-project/go-filecoin/types"
 )
 
@@ -187,6 +188,9 @@ func (syncer *Syncer) syncOne(ctx context.Context, grandParent, parent, next typ
 		return err
 	}
 
+	sink.BeginTipSet(next)
+	defer sink.EndTipSet()
+
 	// Run a state transition to validate the tipset and compute
 	// a new state to add to the store.
 	root, err := syncer.stateEvaluator.RunStateTransition(ctx, next, nextMessages, nextReceipts, ancestors, parentWeight, stateRoot)
@@ -232,6 +236,11 @@ func (syncer *Syncer) syncOne(ctx context.Context, grandParent, parent, next typ
 
 	// If it is the heaviest update the chainStore.
 	if heavier {
+		err = sink.Commit()
+		if err != nil {
+			return err
+		}
+
 		if err = syncer.chainStore.SetHead(ctx, next); err != nil {
 			return err
 		}
@@ -430,6 +439,9 @@ func (syncer *Syncer) HandleNewTipSet(ctx context.Context, ci *types.ChainInfo, 
 	if err != nil {
 		return err
 	}
+
+	sink.Begin()
+	defer sink.End()
 
 	// Try adding the tipsets of the chain to the store, checking for new
 	// heaviest tipsets.

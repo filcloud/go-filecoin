@@ -582,6 +582,11 @@ func (node *Node) StartMining(ctx context.Context) error {
 	}
 	node.setIsMining(true)
 
+	err = addPieceWorker.Start(miningCtx, node)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -694,6 +699,9 @@ func (node *Node) StopMining(ctx context.Context) {
 	}
 
 	// TODO: stop node.StorageProtocol.StorageMiner
+	// TODO: stop node.StorageMiner
+
+	addPieceWorker.Stop()
 }
 
 func (node *Node) handleSubscription(ctx context.Context, sub pubsub.Subscription, handler pubSubHandler) {

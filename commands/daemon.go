@@ -181,7 +181,7 @@ func RunAPIAndWait(ctx context.Context, nd *node.Node, config *config.APIConfig,
 
 	handler := http.NewServeMux()
 	handler.Handle("/debug/pprof/", http.DefaultServeMux)
-	handler.Handle(APIPrefix+"/", cmdhttp.NewHandler(servenv, rootCmdDaemon, cfg))
+	handler.Handle(APIPrefix+"/", cmdhttp.NewHandler(servenv, RootCmdDaemon, cfg))
 
 	apiserv := http.Server{
 		Handler: handler,

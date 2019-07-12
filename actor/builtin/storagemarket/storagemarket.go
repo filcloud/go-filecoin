@@ -37,6 +37,8 @@ func init() {
 	cbor.RegisterCborType(struct{}{})
 }
 
+var HandleCreateMiner func(miner address.Address, m *miner.State)
+
 // Actor implements the filecoin storage market. It is responsible
 // for starting up new miners, and keeping track of the total storage power in the network.
 type Actor struct{}
@@ -150,6 +152,10 @@ func (sma *Actor) CreateStorageMiner(vmctx exec.VMContext, sectorSize *types.Byt
 		state.Miners, err = actor.SetKeyValue(ctx, vmctx.Storage(), state.Miners, addr.String(), true)
 		if err != nil {
 			return nil, errors.FaultErrorWrapf(err, "could not set miner key value for lookup with CID: %s", state.Miners)
+		}
+
+		if HandleCreateMiner != nil {
+			HandleCreateMiner(addr, minerInitializationParams)
 		}
 
 		return addr, nil

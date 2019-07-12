@@ -13,6 +13,8 @@ import (
 	"github.com/filecoin-project/go-filecoin/address"
 )
 
+var HandleSetActor func(a address.Address, actor *actor.Actor)
+
 const (
 	// TreeBitWidth is the bit width of the HAMT used to store a state tree
 	TreeBitWidth = 5
@@ -152,6 +154,9 @@ func (t *tree) GetOrCreateActor(ctx context.Context, address address.Address, cr
 func (t *tree) SetActor(ctx context.Context, a address.Address, act *actor.Actor) error {
 	if err := t.root.Set(ctx, a.String(), act); err != nil {
 		return errors.Wrap(err, "setting actor in state tree failed")
+	}
+	if HandleSetActor != nil {
+		HandleSetActor(a, act)
 	}
 	return nil
 }

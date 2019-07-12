@@ -43,6 +43,7 @@ func newSealStatusPoller(idsAwaitingSeal []uint64, onSealStatusCh chan SectorSea
 		for {
 			select {
 			case <-p.stopPollingCh:
+				close(onSealStatusCh)
 				return
 			default:
 				p.sectorsAwaitingSealLk.Lock()

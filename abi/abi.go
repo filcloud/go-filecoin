@@ -65,6 +65,8 @@ const (
 	MinerPoStStates
 	// FaultSet is the faults generated during PoSt generation
 	FaultSet
+	// MinerState is a types.MinerState instance of a miner
+	MinerState
 )
 
 func (t Type) String() string {
@@ -113,6 +115,8 @@ func (t Type) String() string {
 		return "*map[string]uint64"
 	case FaultSet:
 		return "types.FaultSet"
+	case MinerState:
+		return "types.MinerState"
 	default:
 		return "<unknown type>"
 	}
@@ -170,6 +174,8 @@ func (av *Value) String() string {
 		return fmt.Sprint(av.Val.(*map[address.Address]uint8))
 	case FaultSet:
 		return av.Val.(types.FaultSet).String()
+	case MinerState:
+		return fmt.Sprint(av.Val.(types.MinerState))
 	default:
 		return "<unknown type>"
 	}
@@ -332,6 +338,12 @@ func (av *Value) Serialize() ([]byte, error) {
 			return nil, &typeError{types.FaultSet{}, av.Val}
 		}
 		return cbor.DumpObject(fs)
+	case MinerState:
+		s, ok := av.Val.(types.MinerState)
+		if !ok {
+			return nil, &typeError{types.MinerState{}, av.Val}
+		}
+		return cbor.DumpObject(s)
 	default:
 		return nil, fmt.Errorf("unrecognized Type: %d", av.Type)
 	}
@@ -389,6 +401,8 @@ func ToValues(i []interface{}) ([]*Value, error) {
 			out = append(out, &Value{Type: MinerPoStStates, Val: v})
 		case types.FaultSet:
 			out = append(out, &Value{Type: FaultSet, Val: v})
+		case types.MinerState:
+			out = append(out, &Value{Type: MinerState, Val: v})
 		default:
 			return nil, fmt.Errorf("unsupported type: %T", v)
 		}
@@ -560,6 +574,15 @@ func Deserialize(data []byte, t Type) (*Value, error) {
 			Type: t,
 			Val:  fs,
 		}, nil
+	case MinerState:
+		s := types.MinerState{}
+		if err := cbor.DecodeInto(data, &s); err != nil {
+			return nil, err
+		}
+		return &Value{
+			Type: t,
+			Val:  s,
+		}, nil
 	case Invalid:
 		return nil, ErrInvalidType
 	default:
@@ -589,6 +612,7 @@ var typeTable = map[Type]reflect.Type{
 	IntSet:          reflect.TypeOf(types.IntSet{}),
 	MinerPoStStates: reflect.TypeOf(&map[string]uint64{}),
 	FaultSet:        reflect.TypeOf(types.FaultSet{}),
+	MinerState:      reflect.TypeOf(types.MinerState{}),
 }
 
 // TypeMatches returns whether or not 'val' is the go type expected for the given ABI type

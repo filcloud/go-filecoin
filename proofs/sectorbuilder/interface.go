@@ -13,6 +13,7 @@ import (
 
 func init() {
 	cbor.RegisterCborType(PieceInfo{})
+	cbor.RegisterCborType(SealedSectorMetadata{})
 }
 
 // SectorBuilder provides an interface through which user piece-bytes can be

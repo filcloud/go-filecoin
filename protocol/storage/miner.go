@@ -23,10 +23,12 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/filecoin-project/go-filecoin/abi"
+	"github.com/filecoin-project/go-filecoin/actor/builtin/miner"
 	"github.com/filecoin-project/go-filecoin/actor/builtin/paymentbroker"
 	"github.com/filecoin-project/go-filecoin/address"
 	cbu "github.com/filecoin-project/go-filecoin/cborutil"
 	"github.com/filecoin-project/go-filecoin/exec"
+	"github.com/filecoin-project/go-filecoin/message"
 	"github.com/filecoin-project/go-filecoin/porcelain"
 	"github.com/filecoin-project/go-filecoin/proofs"
 	"github.com/filecoin-project/go-filecoin/proofs/sectorbuilder"
@@ -66,6 +68,9 @@ type Miner struct {
 
 	postInProcessLk sync.Mutex
 	postInProcess   *types.BlockHeight
+	postDoneEnd     *types.BlockHeight
+	postDoneSectors map[uint64]struct{}
+	postSubmission  *PoStSubmission
 
 	dealsAwaitingSeal *dealsAwaitingSeal
 
@@ -97,6 +102,7 @@ type minerPorcelain interface {
 	MinerGetWorkerAddress(ctx context.Context, minerAddr address.Address, baseKey types.TipSetKey) (address.Address, error)
 	SectorBuilder() sectorbuilder.SectorBuilder
 	types.Signer
+	BlockTime() time.Duration
 }
 
 // prover computes PoSts for submission by a miner.
@@ -840,10 +846,42 @@ func (sm *Miner) getProvingWindow() (*types.BlockHeight, *types.BlockHeight, err
 }
 
 func (sm *Miner) submitPoSt(ctx context.Context, start, end *types.BlockHeight, inputs []PoStInputs) {
-	submission, err := sm.prover.CalculatePoSt(ctx, start, end, inputs)
-	if err != nil {
-		log.Errorf("failed to calculate PoSt: %s", err)
-		return
+	var submission *PoStSubmission
+	sm.postInProcessLk.Lock()
+	if sm.postDoneEnd != nil && sm.postDoneEnd.Equal(end) {
+		sameInputs := true
+		if len(inputs) != len(sm.postDoneSectors) {
+			sameInputs = false
+		}
+		for _, input := range inputs {
+			if _, ok := sm.postDoneSectors[input.SectorID]; !ok {
+				sameInputs = false
+				break
+			}
+		}
+		if sameInputs {
+			submission = sm.postSubmission
+		}
+	}
+	sm.postInProcessLk.Unlock()
+
+	if submission == nil {
+		var err error
+		log.Info("calculating PoSt")
+		submission, err = sm.prover.CalculatePoSt(ctx, start, end, inputs)
+		log.Info("calculated PoSt")
+		if err != nil {
+			log.Errorf("failed to calculate PoSt: %s", err)
+			return
+		}
+		sm.postInProcessLk.Lock()
+		sm.postDoneEnd = end
+		sm.postDoneSectors = make(map[uint64]struct{})
+		for _, input := range inputs {
+			sm.postDoneSectors[input.SectorID] = struct{}{}
+		}
+		sm.postSubmission = submission
+		sm.postInProcessLk.Unlock()
 	}
 	// TODO #2998. The done set should be updated by CLI users.
 	// Using the 0 value is just a placeholder until that work lands.
@@ -855,9 +893,26 @@ func (sm *Miner) submitPoSt(ctx context.Context, start, end *types.BlockHeight, 
 		log.Errorf("failed to get worker address: %s", err)
 		return
 	}
-	_, err = sm.porcelainAPI.MessageSend(ctx, workerAddr, sm.minerAddr, submission.Fee, gasPrice, submission.GasLimit, "submitPoSt", submission.Proof, submission.Faults, done)
+	msgCid, err := sm.porcelainAPI.MessageSend(ctx, workerAddr, sm.minerAddr, submission.Fee, gasPrice, submission.GasLimit, "submitPoSt", submission.Proof, submission.Faults, done)
 	if err != nil {
 		log.Errorf("failed to submit PoSt: %s", err)
+		return
+	}
+
+	waitCtx, waitCancel := context.WithDeadline(ctx, time.Now().Add(sm.porcelainAPI.BlockTime()*message.OutboxMaxAgeRounds))
+	err = sm.porcelainAPI.MessageWait(waitCtx, msgCid, func(blk *types.Block, smsg *types.SignedMessage, receipt *types.MessageReceipt) error {
+		return nil
+	})
+	waitCancel()
+	if err != nil {
+		log.Errorf("failed to wait PoSt: %s", err)
+		sm.postInProcessLk.Lock()
+		defer sm.postInProcessLk.Unlock()
+		sm.postInProcess = nil
+		if err == miner.Errors[miner.ErrInvalidPoSt] {
+			sm.postDoneEnd = nil
+			sm.postSubmission = nil
+		}
 		return
 	}
 
