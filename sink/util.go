@@ -3,6 +3,7 @@ package sink
 import (
 	"database/sql/driver"
 	"fmt"
+	"math/big"
 	"strconv"
 
 	"github.com/filecoin-project/go-filecoin/address"
@@ -72,6 +73,16 @@ func (s DealState) Value() (driver.Value, error) {
 	return storagedeal.State(s).String(), nil
 }
 
+type IntSet types.IntSet
+
+func (i *IntSet) Scan(src interface{}) error {
+	return fromCbor(src.([]byte), i)
+}
+
+func (i IntSet) Value() (driver.Value, error) {
+	return toCbor(i), nil
+}
+
 func toCbor(v interface{}) []byte {
 	obj, err := cbor.WrapObject(v, types.DefaultHashFunction, -1)
 	if err != nil {
@@ -90,4 +101,10 @@ func attoToFloat64(v types.AttoFIL) float64 {
 		panic(err)
 	}
 	return f
+}
+
+func checkUint64(b *big.Int) {
+	if !b.IsUint64() {
+		panic("too big size")
+	}
 }

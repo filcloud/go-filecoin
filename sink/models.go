@@ -1,14 +1,18 @@
 package sink
 
 import (
-	"github.com/filecoin-project/go-filecoin/protocol/storage/storagedeal"
 	"time"
 
 	"github.com/filecoin-project/go-filecoin/actor"
+	"github.com/filecoin-project/go-filecoin/actor/builtin/miner"
+	"github.com/filecoin-project/go-filecoin/actor/builtin/paymentbroker"
+	"github.com/filecoin-project/go-filecoin/address"
+	"github.com/filecoin-project/go-filecoin/protocol/storage/storagedeal"
 	"github.com/filecoin-project/go-filecoin/types"
 )
 
 type Actor struct {
+	Address      Address `gorm:"primary_key"`
 	Code         string
 	Head         string
 	Nonce        uint64
@@ -26,7 +30,6 @@ func BuildActor(a *actor.Actor) Actor {
 	}
 }
 
-/*
 type TipSet struct {
 	ID     string `gorm:"primary_key"`
 	Height uint64 `gorm:"index"`
@@ -42,7 +45,6 @@ func BuildTipSet(t types.TipSet) TipSet {
 		Height: h,
 	}
 }
-*/
 
 type Block struct {
 	Cid             string `gorm:"primary_key"`
@@ -138,8 +140,54 @@ func BuildMessageReceipt(m types.MessageReceipt) MessageReceipt {
 }
 */
 
+type Miner struct {
+	Miner                 Address `gorm:"primary_key"`
+	Owner                 Address `gorm:"index"`
+	Worker                Address `gorm:"index"`
+	PeerID                string
+	ActiveCollateral      float64
+	NextAskID             uint64
+	ProvingSet            IntSet
+	LastUsedSectorID      uint64
+	ProvingPeriodEnd      uint64
+	Power                 uint64
+	SectorSize            uint64
+	SlashedAt             uint64
+	OwedStorageCollateral float64
+}
+
+type MinerAsk struct {
+	Miner  Address `gorm:"primary_key"`
+	ID     uint64  `gorm:"primary_key"`
+	Price  float64
+	Expiry uint64
+}
+
+func BuildMiner(miner address.Address, m miner.State) Miner {
+	checkUint64(m.NextAskID)
+	checkUint64(m.ProvingPeriodEnd.AsBigInt())
+	checkUint64(m.Power.BigInt())
+	checkUint64(m.SectorSize.BigInt())
+	checkUint64(m.SlashedAt.AsBigInt())
+	return Miner{
+		Miner:                 Address(miner),
+		Owner:                 Address(m.Owner),
+		Worker:                Address(m.Worker),
+		PeerID:                string(m.PeerID),
+		ActiveCollateral:      attoToFloat64(m.ActiveCollateral),
+		NextAskID:             m.NextAskID.Uint64(),
+		ProvingSet:            IntSet(m.ProvingSet),
+		LastUsedSectorID:      m.LastUsedSectorID,
+		ProvingPeriodEnd:      m.ProvingPeriodEnd.AsBigInt().Uint64(),
+		Power:                 m.Power.Uint64(),
+		SectorSize:            m.SectorSize.Uint64(),
+		SlashedAt:             m.SlashedAt.AsBigInt().Uint64(),
+		OwedStorageCollateral: attoToFloat64(m.OwedStorageCollateral),
+	}
+}
+
 type Deal struct {
-	ProposalCid Cid
+	ProposalCid Cid `gorm:"primary_key"`
 	Payer       Address
 	Miner       Address
 	State       DealState
@@ -150,9 +198,7 @@ type Deal struct {
 }
 
 func BuildDeal(d storagedeal.Deal) Deal {
-	if d.Proposal.Size.GreaterThan(types.NewBytesAmount(1<<64 - 1)) {
-		panic("too big size")
-	}
+	checkUint64(d.Proposal.Size.BigInt())
 	return Deal{
 		ProposalCid: Cid(d.Response.ProposalCid),
 		Payer:       Address(d.Proposal.Payment.Payer),
@@ -162,5 +208,31 @@ func BuildDeal(d storagedeal.Deal) Deal {
 		Size:        d.Proposal.Size.Uint64(),
 		TotalPrice:  attoToFloat64(d.Proposal.TotalPrice),
 		Duration:    d.Proposal.Duration,
+	}
+}
+
+type PaymentChannel struct {
+	Payer          Address `gorm:"primary_key"`
+	ChannelID      uint64  `gorm:"primary_key"`
+	Target         Address
+	Amount         float64
+	AmountRedeemed float64
+	AgreedEol      uint64
+	Eol            uint64
+	Redeemed       bool
+}
+
+func BuildPaymentChannel(payer address.Address, channelID uint64, p paymentbroker.PaymentChannel) PaymentChannel {
+	checkUint64(p.AgreedEol.AsBigInt())
+	checkUint64(p.Eol.AsBigInt())
+	return PaymentChannel{
+		Payer:          Address(payer),
+		ChannelID:      channelID,
+		Target:         Address(p.Target),
+		Amount:         attoToFloat64(p.Amount),
+		AmountRedeemed: attoToFloat64(p.AmountRedeemed),
+		AgreedEol:      p.AgreedEol.AsBigInt().Uint64(),
+		Eol:            p.Eol.AsBigInt().Uint64(),
+		Redeemed:       p.Redeemed,
 	}
 }
