@@ -77,14 +77,15 @@ func BuildBlock(b types.Block) Block {
 }
 
 type Message struct {
-	Cid        string `gorm:"primary_key"`
-	To         string `gorm:"index:idx_to,idx_to_method"`
-	From       string `gorm:"index"`
-	Nonce      uint64
-	Value      float64 `gorm:"index"`
-	ValueBytes []byte
-	Method     string `gorm:"index:idx_to_method"`
-	Params     []byte
+	Cid         string `gorm:"primary_key"` // cid of signed message
+	SuccinctCid string `gorm:"index"`       // cid of message
+	To          string `gorm:"index:idx_to,idx_to_method"`
+	From        string `gorm:"index"`
+	Nonce       uint64
+	Value       float64 `gorm:"index"`
+	ValueBytes  []byte
+	Method      string `gorm:"index:idx_to_method"`
+	Params      []byte
 
 	GasPrice float64 `json:"gasPrice"`
 	GasLimit uint64  `json:"gasLimit"`
@@ -102,15 +103,20 @@ func BuildMessage(m types.SignedMessage, r types.MessageReceipt) Message {
 	if err != nil {
 		panic(err)
 	}
+	succinctCid, err := m.Message.Cid()
+	if err != nil {
+		panic(err)
+	}
 	return Message{
-		Cid:        cid.String(),
-		To:         m.To.String(),
-		From:       m.From.String(),
-		Nonce:      uint64(m.Nonce),
-		Value:      attoToFloat64(m.Value),
-		ValueBytes: m.Value.Bytes(),
-		Method:     m.Method,
-		Params:     m.Params,
+		Cid:         cid.String(),
+		SuccinctCid: succinctCid.String(),
+		To:          m.To.String(),
+		From:        m.From.String(),
+		Nonce:       uint64(m.Nonce),
+		Value:       attoToFloat64(m.Value),
+		ValueBytes:  m.Value.Bytes(),
+		Method:      m.Method,
+		Params:      m.Params,
 
 		GasPrice: attoToFloat64(m.GasPrice),
 		GasLimit: uint64(m.GasLimit),
@@ -140,6 +146,28 @@ func BuildMessageReceipt(m types.MessageReceipt) MessageReceipt {
 }
 */
 
+type SendMessage struct {
+	Cid    string  `gorm:"primary_key"` // cid of message
+	To     string  `gorm:"index:idx_to,idx_to_method"`
+	From   string  `gorm:"index"`
+	Value  float64 `gorm:"index"`
+	Method string  `gorm:"index:idx_to_method"`
+}
+
+func BuildSendMessage(m types.Message) SendMessage {
+	cid, err := m.Cid()
+	if err != nil {
+		panic(err)
+	}
+	return SendMessage{
+		Cid:    cid.String(),
+		To:     m.To.String(),
+		From:   m.From.String(),
+		Value:  attoToFloat64(m.Value),
+		Method: m.Method,
+	}
+}
+
 type Miner struct {
 	Miner                 Address `gorm:"primary_key"`
 	Owner                 Address `gorm:"index"`
@@ -154,13 +182,6 @@ type Miner struct {
 	SectorSize            uint64
 	SlashedAt             uint64
 	OwedStorageCollateral float64
-}
-
-type MinerAsk struct {
-	Miner  Address `gorm:"primary_key"`
-	ID     uint64  `gorm:"primary_key"`
-	Price  float64
-	Expiry uint64
 }
 
 func BuildMiner(miner address.Address, m miner.State) Miner {
@@ -186,6 +207,25 @@ func BuildMiner(miner address.Address, m miner.State) Miner {
 	}
 }
 
+type MinerAsk struct {
+	Miner  Address `gorm:"primary_key"`
+	ID     uint64  `gorm:"primary_key"`
+	Price  float64
+	Expiry uint64
+}
+
+func BuildMinerAsk(miner address.Address, a miner.Ask) MinerAsk {
+	checkUint64(a.ID)
+	checkUint64(a.Expiry.AsBigInt())
+	return MinerAsk{
+		Miner:  Address(miner),
+		ID:     a.ID.Uint64(),
+		Price:  attoToFloat64(a.Price),
+		Expiry: a.Expiry.AsBigInt().Uint64(),
+	}
+}
+
+// Since deals are only stored on client and miner side, `Deal` should only be used in testing environment.
 type Deal struct {
 	ProposalCid Cid `gorm:"primary_key"`
 	Payer       Address

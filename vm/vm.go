@@ -12,6 +12,8 @@ import (
 	"github.com/filecoin-project/go-filecoin/vm/errors"
 )
 
+var HandleSendMessage func(m *types.Message)
+
 // Send executes a message pass inside the VM. If error is set it
 // will always satisfy either ShouldRevert() or IsFault().
 func Send(ctx context.Context, vmCtx *Context) ([][]byte, uint8, error) {
@@ -33,6 +35,9 @@ func send(ctx context.Context, deps sendDeps, vmCtx *Context) ([][]byte, uint8, 
 				return nil, err.(*errors.RevertError).Code(), err
 			}
 			return nil, 1, err
+		}
+		if HandleSendMessage != nil {
+			HandleSendMessage(vmCtx.message)
 		}
 	}
 

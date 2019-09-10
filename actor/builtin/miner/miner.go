@@ -98,6 +98,8 @@ const (
 	PoStStateUnrecoverable
 )
 
+var HandleAddMinerAsk func(miner address.Address, a *Ask)
+
 // Actor is the miner actor.
 //
 // If `Bootstrap` is `true`, the miner will not verify seal proofs. This is
@@ -378,6 +380,10 @@ func (ma *Actor) AddAsk(ctx exec.VMContext, price types.AttoFIL, expiry *big.Int
 			Expiry: ctx.BlockHeight().Add(expiryBH),
 			ID:     id,
 		})
+
+		if HandleAddMinerAsk != nil {
+			HandleAddMinerAsk(ctx.Message().To, state.Asks[len(state.Asks)-1])
+		}
 
 		return id, nil
 	})

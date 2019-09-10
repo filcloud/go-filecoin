@@ -28,6 +28,9 @@ var (
 	pbTimer = metrics.NewTimerMs("consensus/process_block", "Duration of block processing in milliseconds")
 )
 
+var HandleMessagesInBlock func(*types.Block, ApplyMessagesResponse)
+var HandleMessagesInTipSet func(*types.Block, ApplyMessagesResponse)
+
 // BlockRewarder applies all rewards due to the miner's owner for processing a block including block reward and gas
 type BlockRewarder interface {
 	// BlockReward pays out the mining reward
@@ -127,6 +130,9 @@ func (p *DefaultProcessor) ProcessBlock(ctx context.Context, st state.Tree, vms 
 	if faultErr != nil {
 		return emptyResults, faultErr
 	}
+	if HandleMessagesInBlock != nil {
+		HandleMessagesInBlock(blk, res)
+	}
 	if len(res.PermanentErrors) > 0 {
 		return emptyResults, res.PermanentErrors[0]
 	}
@@ -190,6 +196,9 @@ func (p *DefaultProcessor) ProcessTipSet(ctx context.Context, st state.Tree, vms
 		amRes, err := p.ApplyMessagesAndPayRewards(ctx, st, vms, msgs, minerOwnerAddr, bh, ancestors)
 		if err != nil {
 			return &ProcessTipSetResponse{}, err
+		}
+		if HandleMessagesInTipSet != nil {
+			HandleMessagesInTipSet(blk, amRes)
 		}
 		res.Results = append(res.Results, amRes.Results...)
 		for _, msg := range amRes.SuccessfulMessages {

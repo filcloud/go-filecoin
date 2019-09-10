@@ -48,6 +48,8 @@ var (
 	ErrUnorderedTipSets = errors.New("trying to order two identical tipsets")
 )
 
+var MarkMessagesInBlock func()
+
 // DefaultBlockTime is the estimated proving period time.
 // We define this so that we can fake mining in the current incomplete system.
 // We also use this to enforce a soft block validation.
@@ -354,6 +356,10 @@ func (c *Expected) validateMining(ctx context.Context, st state.Tree, ts types.T
 // faults while running aggregate state computation.
 func (c *Expected) runMessages(ctx context.Context, st state.Tree, vms vm.StorageMap, ts types.TipSet, tsMessages [][]*types.SignedMessage, tsReceipts [][]*types.MessageReceipt, ancestors []types.TipSet) (state.Tree, error) {
 	var cpySt state.Tree
+
+	if ts.Len() == 1 && MarkMessagesInBlock != nil {
+		MarkMessagesInBlock()
+	}
 
 	// TODO: don't process messages twice
 	for i := 0; i < ts.Len(); i++ {

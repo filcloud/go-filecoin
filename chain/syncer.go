@@ -14,6 +14,7 @@ import (
 	"github.com/filecoin-project/go-filecoin/metrics"
 	"github.com/filecoin-project/go-filecoin/metrics/tracing"
 	"github.com/filecoin-project/go-filecoin/net"
+	"github.com/filecoin-project/go-filecoin/sink"
 	"github.com/filecoin-project/go-filecoin/types"
 )
 
@@ -173,6 +174,9 @@ func (syncer *Syncer) syncOne(ctx context.Context, parent, next types.TipSet) er
 		nextReceipts = append(nextReceipts, rcpts)
 	}
 
+	sink.BeginTipSet(next)
+	defer sink.EndTipSet()
+
 	// Run a state transition to validate the tipset and compute
 	// a new state to add to the store.
 	root, err := syncer.stateEvaluator.RunStateTransition(ctx, next, nextMessages, nextReceipts, ancestors, stateRoot)
@@ -223,6 +227,8 @@ func (syncer *Syncer) syncOne(ctx context.Context, parent, next types.TipSet) er
 		}
 		// Gather the entire new chain for reorg comparison and logging.
 		syncer.logReorg(ctx, headTipSet, next)
+
+		sink.CommitTipSet()
 	}
 
 	return nil
@@ -400,6 +406,7 @@ func (syncer *Syncer) HandleNewTipSet(ctx context.Context, ci *types.ChainInfo, 
 				if err != nil {
 					return err
 				}
+				sink.Widen()
 			}
 		}
 		// If the chain has length greater than 1, then we need to sync each tipset
