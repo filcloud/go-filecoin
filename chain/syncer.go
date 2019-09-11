@@ -222,13 +222,16 @@ func (syncer *Syncer) syncOne(ctx context.Context, parent, next types.TipSet) er
 
 	// If it is the heaviest update the chainStore.
 	if heavier {
+		err = sink.Commit()
+		if err != nil {
+			return err
+		}
+
 		if err = syncer.chainStore.SetHead(ctx, next); err != nil {
 			return err
 		}
 		// Gather the entire new chain for reorg comparison and logging.
 		syncer.logReorg(ctx, headTipSet, next)
-
-		sink.CommitTipSet()
 	}
 
 	return nil
@@ -389,6 +392,9 @@ func (syncer *Syncer) HandleNewTipSet(ctx context.Context, ci *types.ChainInfo, 
 		return err
 	}
 
+	sink.Begin()
+	defer sink.End()
+
 	// Try adding the tipsets of the chain to the store, checking for new
 	// heaviest tipsets.
 	for i, ts := range chain {
@@ -406,7 +412,6 @@ func (syncer *Syncer) HandleNewTipSet(ctx context.Context, ci *types.ChainInfo, 
 				if err != nil {
 					return err
 				}
-				sink.Widen()
 			}
 		}
 		// If the chain has length greater than 1, then we need to sync each tipset

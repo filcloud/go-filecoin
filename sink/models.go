@@ -18,10 +18,13 @@ type Actor struct {
 	Nonce        uint64
 	BalanceBytes []byte
 	Balance      float64
+
+	UpdatedAt time.Time
 }
 
-func BuildActor(a *actor.Actor) Actor {
+func BuildActor(addr address.Address, a *actor.Actor) Actor {
 	return Actor{
+		Address:      Address(addr),
 		Code:         a.Code.String(),
 		Head:         a.Head.String(),
 		Nonce:        uint64(a.Nonce),
@@ -96,6 +99,8 @@ type Message struct {
 	ExitCode uint8
 	Return   []byte
 	Gas      float64
+
+	Height uint64 `gorm:"index"`
 }
 
 func BuildMessage(m types.SignedMessage, r types.MessageReceipt) Message {
@@ -152,9 +157,11 @@ type SendMessage struct {
 	From   string  `gorm:"index"`
 	Value  float64 `gorm:"index"`
 	Method string  `gorm:"index:idx_to_method"`
+
+	Height uint64 `gorm:"index"`
 }
 
-func BuildSendMessage(m types.Message) SendMessage {
+func BuildSendMessage(m *types.Message) SendMessage {
 	cid, err := m.Cid()
 	if err != nil {
 		panic(err)
@@ -184,7 +191,7 @@ type Miner struct {
 	OwedStorageCollateral float64
 }
 
-func BuildMiner(miner address.Address, m miner.State) Miner {
+func BuildMiner(miner address.Address, m *miner.State) Miner {
 	checkUint64(m.NextAskID)
 	checkUint64(m.ProvingPeriodEnd.AsBigInt())
 	checkUint64(m.Power.BigInt())
@@ -214,7 +221,7 @@ type MinerAsk struct {
 	Expiry uint64
 }
 
-func BuildMinerAsk(miner address.Address, a miner.Ask) MinerAsk {
+func BuildMinerAsk(miner address.Address, a *miner.Ask) MinerAsk {
 	checkUint64(a.ID)
 	checkUint64(a.Expiry.AsBigInt())
 	return MinerAsk{

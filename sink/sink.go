@@ -2,20 +2,22 @@ package sink
 
 import (
 	"github.com/cochainio/orm"
+	"github.com/filecoin-project/go-filecoin/actor"
 	"github.com/filecoin-project/go-filecoin/actor/builtin/miner"
 	"github.com/filecoin-project/go-filecoin/actor/builtin/storagemarket"
 	"github.com/filecoin-project/go-filecoin/address"
 	"github.com/filecoin-project/go-filecoin/consensus"
+	"github.com/filecoin-project/go-filecoin/state"
 	"github.com/filecoin-project/go-filecoin/types"
 	"github.com/filecoin-project/go-filecoin/vm"
 )
 
 type Sink struct {
-	currentTipSet   types.TipSet
-	widen           bool
+	db *orm.DB
+
+	inHandling      bool
 	messagesInBlock bool
-	db              *orm.DB
-	tx              *orm.TX
+	cache           *Cache
 }
 
 var sink *Sink
@@ -30,27 +32,36 @@ func Init() {
 	vm.HandleSendMessage = HandleSendMessage
 	storagemarket.HandleCreateMiner = HandleCreateMiner
 	miner.HandleAddMinerAsk = HandleAddMinerAsk
+	state.HandleSetActor = HandleSetActor
+}
+
+func Begin() {
+	sink.cache = &Cache{}
+}
+
+func End() {
+}
+
+func Commit() error {
+	if !sink.cache.IsEmpty() {
+		err := Persist()
+		if err != nil {
+			return err
+		}
+	}
+	sink.cache = &Cache{}
+	return nil
 }
 
 func BeginTipSet(tipSet types.TipSet) {
-	sink.currentTipSet = tipSet
-	sink.widen = false
+	sink.inHandling = true
 	sink.messagesInBlock = false
-	sink.tx = sink.db.Begin()
+
+	sink.cache.TipSets = append(sink.cache.TipSets, BuildTipSet(tipSet))
 }
 
 func EndTipSet() {
-	sink.currentTipSet = types.UndefTipSet
-	sink.tx.End()
-	sink.tx = nil
-}
-
-func CommitTipSet() {
-	_ = sink.tx.Commit()
-}
-
-func Widen() {
-	sink.widen = true
+	sink.inHandling = false
 }
 
 func MarkMessagesInBlock() {
@@ -70,11 +81,29 @@ func HandleMessagesInTipSet(b *types.Block, r consensus.ApplyMessagesResponse) {
 }
 
 func HandleSendMessage(m *types.Message) {
+	if !sink.inHandling {
+		return
+	}
+	sink.cache.SendMessages = append(sink.cache.SendMessages, BuildSendMessage(m))
 }
 
 func HandleCreateMiner(miner address.Address, m *miner.State) {
-
+	if !sink.inHandling {
+		return
+	}
+	sink.cache.Miners = append(sink.cache.Miners, BuildMiner(miner, m))
 }
 
 func HandleAddMinerAsk(miner address.Address, a *miner.Ask) {
+	if !sink.inHandling {
+		return
+	}
+	sink.cache.MinerAsks = append(sink.cache.MinerAsks, BuildMinerAsk(miner, a))
+}
+
+func HandleSetActor(a address.Address, actor *actor.Actor) {
+	if !sink.inHandling {
+		return
+	}
+	sink.cache.Actors = append(sink.cache.Actors, BuildActor(a, actor))
 }
