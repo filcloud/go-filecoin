@@ -1,9 +1,8 @@
-package miner
+package types
 
 import (
 	"strconv"
 
-	"github.com/filecoin-project/go-filecoin/types"
 	"github.com/filecoin-project/go-filecoin/vm/errors"
 )
 
@@ -14,11 +13,11 @@ import (
 // SectorSet is a collection of sector commitments indexed by their integer
 // sectorID.  Due to a bug in refmt, the sector id-keys need to be stringified.
 // See also: https://github.com/polydawn/refmt/issues/35.
-type SectorSet map[string]types.Commitments
+type SectorSet map[string]Commitments
 
 // NewSectorSet initializes a SectorSet with no entries.
 func NewSectorSet() SectorSet {
-	return make(map[string]types.Commitments)
+	return make(map[string]Commitments)
 }
 
 // Has returns true if the SectorSet is already tracking id, else false.
@@ -28,12 +27,12 @@ func (ss SectorSet) Has(id uint64) bool {
 }
 
 // Add updates the SectorSet to include the new commitment at the given id.
-func (ss SectorSet) Add(id uint64, comms types.Commitments) {
+func (ss SectorSet) Add(id uint64, comms Commitments) {
 	ss[idStr(id)] = comms
 }
 
 // Get returns the commitment at the given id and a bool indicating success.
-func (ss SectorSet) Get(id uint64) (types.Commitments, bool) {
+func (ss SectorSet) Get(id uint64) (Commitments, bool) {
 	comms, ok := ss[idStr(id)]
 	return comms, ok
 }
@@ -43,7 +42,7 @@ func (ss SectorSet) Get(id uint64) (types.Commitments, bool) {
 func (ss SectorSet) Drop(ids []uint64) error {
 	for _, id := range ids {
 		if _, ok := ss[idStr(id)]; !ok {
-			return Errors[ErrInvalidSector]
+			return errors.NewRevertError("sectorID out of range")
 		}
 		delete(ss, idStr(id))
 	}

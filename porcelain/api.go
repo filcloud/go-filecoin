@@ -118,6 +118,11 @@ func (a *API) MinerPreviewCreate(
 }
 
 // MinerGetAsk queries for an ask of the given miner
+func (a *API) MinerGetState(ctx context.Context, minerAddr address.Address) (minerActor.State, error) {
+	return MinerGetState(ctx, a, minerAddr)
+}
+
+// MinerGetAsk queries for an ask of the given miner
 func (a *API) MinerGetAsk(ctx context.Context, minerAddr address.Address, askID uint64) (minerActor.Ask, error) {
 	return MinerGetAsk(ctx, a, minerAddr, askID)
 }

@@ -366,6 +366,21 @@ type mgaAPI interface {
 	MessageQuery(ctx context.Context, optFrom, to address.Address, method string, baseKey types.TipSetKey, params ...interface{}) ([][]byte, error)
 }
 
+// MinerGetState queries for a state of the given miner
+func MinerGetState(ctx context.Context, plumbing mgaAPI, minerAddr address.Address) (minerActor.State, error) {
+	ret, err := plumbing.MessageQuery(ctx, address.Undef, minerAddr, "getState", plumbing.ChainHeadKey())
+	if err != nil {
+		return minerActor.State{}, err
+	}
+
+	var state minerActor.State
+	if err := cbor.DecodeInto(ret[0], &state); err != nil {
+		return minerActor.State{}, err
+	}
+
+	return state, nil
+}
+
 // MinerGetAsk queries for an ask of the given miner
 func MinerGetAsk(ctx context.Context, plumbing mgaAPI, minerAddr address.Address, askID uint64) (minerActor.Ask, error) {
 	ret, err := plumbing.MessageQuery(ctx, address.Undef, minerAddr, "getAsk", plumbing.ChainHeadKey(), big.NewInt(int64(askID)))
