@@ -2,6 +2,7 @@ package node
 
 import (
 	"context"
+	"github.com/filecoin-project/go-filecoin/sink"
 	"time"
 
 	"github.com/ipfs/go-bitswap"
@@ -329,6 +330,8 @@ func (nc *Builder) build(ctx context.Context) (*Node, error) {
 	}
 	minPeerThreshold := nd.Repo.Config().Bootstrap.MinPeerThreshold
 	nd.Bootstrapper = net.NewBootstrapper(bpi, nd.Host(), nd.Host().Network(), nd.Router, minPeerThreshold, period)
+
+	sink.Init(nd.PorcelainAPI)
 
 	return nd, nil
 }

@@ -19,7 +19,8 @@ type Actor struct {
 	BalanceBytes []byte
 	Balance      float64
 
-	UpdatedAt time.Time
+	UpdatedHeight uint64 `gorm:"index"`
+	UpdatedAt    time.Time
 }
 
 func BuildActor(addr address.Address, a *actor.Actor) Actor {
@@ -189,6 +190,9 @@ type Miner struct {
 	SectorSize            uint64
 	SlashedAt             uint64
 	OwedStorageCollateral float64
+
+	UpdatedHeight uint64 `gorm:"index"`
+	UpdatedAt time.Time
 }
 
 func BuildMiner(miner address.Address, m *miner.State) Miner {
@@ -219,6 +223,9 @@ type MinerAsk struct {
 	ID     uint64  `gorm:"primary_key"`
 	Price  float64
 	Expiry uint64
+
+	UpdatedHeight uint64 `gorm:"index"`
+	UpdatedAt time.Time
 }
 
 func BuildMinerAsk(miner address.Address, a *miner.Ask) MinerAsk {

@@ -1,6 +1,7 @@
 package sink
 
 import (
+	"context"
 	"github.com/cochainio/orm"
 	"github.com/filecoin-project/go-filecoin/actor"
 	"github.com/filecoin-project/go-filecoin/actor/builtin/miner"
@@ -10,10 +11,18 @@ import (
 	"github.com/filecoin-project/go-filecoin/state"
 	"github.com/filecoin-project/go-filecoin/types"
 	"github.com/filecoin-project/go-filecoin/vm"
+	"os"
 )
 
+type PorcelainAPI interface {
+	ActorGet(ctx context.Context, addr address.Address) (*actor.Actor, error)
+	MinerGetAsk(ctx context.Context, minerAddr address.Address, askID uint64) (miner.Ask, error)
+	MinerGetState(ctx context.Context, minerAddr address.Address) (miner.State, error)
+}
+
 type Sink struct {
-	db *orm.DB
+	db        *orm.DB
+	porcelain PorcelainAPI
 
 	inHandling      bool
 	messagesInBlock bool
@@ -22,9 +31,15 @@ type Sink struct {
 
 var sink *Sink
 
-func Init() {
+func Init(porcelain PorcelainAPI) {
+	dsn := os.Getenv("FIL_SINK_DSN")
+	if dsn == "" {
+		return // no sink
+	}
+	orm.Instantiate(dsn)
 	sink = &Sink{
-		db: orm.Singleton,
+		db:        orm.Singleton,
+		porcelain: porcelain,
 	}
 	consensus.MarkMessagesInBlock = MarkMessagesInBlock
 	consensus.HandleMessagesInBlock = HandleMessagesInBlock
@@ -44,7 +59,7 @@ func End() {
 
 func Commit() error {
 	if !sink.cache.IsEmpty() {
-		err := Persist()
+		err := Persist(context.Background())
 		if err != nil {
 			return err
 		}
