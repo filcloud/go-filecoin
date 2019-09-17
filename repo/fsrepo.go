@@ -102,11 +102,11 @@ func InitFSRepoDirect(targetPath string, version uint, cfg *config.Config) error
 		return err
 	}
 
-	if err := ensureWritableDirectory(repoPath); err != nil {
+	if err := EnsureWritableDirectory(repoPath); err != nil {
 		return errors.Wrap(err, "no writable directory")
 	}
 
-	empty, err := isEmptyDir(repoPath)
+	empty, err := IsEmptyDir(repoPath)
 	if err != nil {
 		return errors.Wrapf(err, "failed to list repo directory %s", repoPath)
 	}
@@ -474,7 +474,7 @@ func initConfig(p string, cfg *config.Config) error {
 
 	// make the snapshot dir
 	snapshotDir := filepath.Join(p, snapshotStorePrefix)
-	return ensureWritableDirectory(snapshotDir)
+	return EnsureWritableDirectory(snapshotDir)
 }
 
 func genSnapshotFileName() string {
@@ -482,7 +482,7 @@ func genSnapshotFileName() string {
 }
 
 // Ensures that path points to a read/writable directory, creating it if necessary.
-func ensureWritableDirectory(path string) error {
+func EnsureWritableDirectory(path string) error {
 	// Attempt to create the requested directory, accepting that something might already be there.
 	err := os.Mkdir(path, 0775)
 
@@ -507,7 +507,7 @@ func ensureWritableDirectory(path string) error {
 }
 
 // Tests whether the directory at path is empty
-func isEmptyDir(path string) (bool, error) {
+func IsEmptyDir(path string) (bool, error) {
 	infos, err := ioutil.ReadDir(path)
 	if err != nil {
 		return false, err
