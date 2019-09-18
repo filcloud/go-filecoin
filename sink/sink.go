@@ -2,7 +2,10 @@ package sink
 
 import (
 	"context"
+	"os"
+
 	"github.com/cochainio/orm"
+
 	"github.com/filecoin-project/go-filecoin/actor"
 	"github.com/filecoin-project/go-filecoin/actor/builtin/miner"
 	"github.com/filecoin-project/go-filecoin/actor/builtin/storagemarket"
@@ -11,7 +14,6 @@ import (
 	"github.com/filecoin-project/go-filecoin/state"
 	"github.com/filecoin-project/go-filecoin/types"
 	"github.com/filecoin-project/go-filecoin/vm"
-	"os"
 )
 
 type PorcelainAPI interface {
