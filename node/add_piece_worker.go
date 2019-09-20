@@ -46,17 +46,30 @@ func (w *AddPieceWorker) Start(ctx context.Context, node *Node) error {
 	go func() {
 		defer w.wg.Done()
 
+		log.Infof("Starting add piece worker")
+
+		stagedSectors := make(map[uint64]struct{})
+
 		for {
 			select {
 			case <-ctx.Done():
 				return
 			case <-time.After(5 * time.Second):
-				allStaged, err := node.sectorBuilder.GetAllStagedSectors()
-				if err != nil {
-					log.Errorf("failed to get all staged sectors: %s", err)
-					continue
+				var sealedSectors []uint64
+				for sectorID := range stagedSectors {
+					meta, err := node.sectorBuilder.(*sectorbuilder.RustSectorBuilder).FindSealedSectorMetadata(sectorID)
+					if err != nil { // failed
+						log.Errorf("find failed sector %d: %s", sectorID, err)
+						continue
+					} else if meta != nil { // sealed
+						sealedSectors = append(sealedSectors, sectorID)
+					}
 				}
-				if len(allStaged) > 1 {
+				for _, sectorID := range sealedSectors {
+					delete(stagedSectors, sectorID)
+				}
+				if len(stagedSectors) > 1 {
+					log.Warningf("skip add piece round, since staged or sealing sectors: %d", len(stagedSectors))
 					continue
 				}
 
@@ -65,6 +78,7 @@ func (w *AddPieceWorker) Start(ctx context.Context, node *Node) error {
 					log.Errorf("failed to add piece: %s", err)
 					continue
 				}
+				stagedSectors[sectorID] = struct{}{}
 				log.Infof("added piece to sector %d", sectorID)
 			}
 		}
