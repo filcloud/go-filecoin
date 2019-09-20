@@ -53,13 +53,22 @@ func Init(porcelain PorcelainAPI) {
 }
 
 func Begin() {
+	if sink == nil {
+		return
+	}
 	sink.cache = &Cache{}
 }
 
 func End() {
+	if sink == nil {
+		return
+	}
 }
 
 func Commit() error {
+	if sink == nil {
+		return nil
+	}
 	if !sink.cache.IsEmpty() {
 		err := Persist(context.Background())
 		if err != nil {
@@ -71,6 +80,9 @@ func Commit() error {
 }
 
 func BeginTipSet(tipSet types.TipSet) {
+	if sink == nil {
+		return
+	}
 	sink.inHandling = true
 	sink.messagesInBlock = false
 
@@ -78,48 +90,54 @@ func BeginTipSet(tipSet types.TipSet) {
 }
 
 func EndTipSet() {
+	if sink == nil {
+		return
+	}
 	sink.inHandling = false
 }
 
 func MarkMessagesInBlock() {
+	if sink == nil {
+		return
+	}
 	sink.messagesInBlock = true
 }
 
 func HandleMessagesInBlock(b *types.Block, r consensus.ApplyMessagesResponse) {
-	if !sink.messagesInBlock {
+	if sink == nil || !sink.messagesInBlock {
 		return
 	}
 }
 
 func HandleMessagesInTipSet(b *types.Block, r consensus.ApplyMessagesResponse) {
-	if sink.messagesInBlock {
+	if sink == nil || sink.messagesInBlock {
 		return
 	}
 }
 
 func HandleSendMessage(m *types.Message) {
-	if !sink.inHandling {
+	if sink == nil || !sink.inHandling {
 		return
 	}
 	sink.cache.SendMessages = append(sink.cache.SendMessages, BuildSendMessage(m))
 }
 
 func HandleCreateMiner(miner address.Address, m *miner.State) {
-	if !sink.inHandling {
+	if sink == nil || !sink.inHandling {
 		return
 	}
 	sink.cache.Miners = append(sink.cache.Miners, BuildMiner(miner, m))
 }
 
 func HandleAddMinerAsk(miner address.Address, a *miner.Ask) {
-	if !sink.inHandling {
+	if sink == nil || !sink.inHandling {
 		return
 	}
 	sink.cache.MinerAsks = append(sink.cache.MinerAsks, BuildMinerAsk(miner, a))
 }
 
 func HandleSetActor(a address.Address, actor *actor.Actor) {
-	if !sink.inHandling {
+	if sink == nil || !sink.inHandling {
 		return
 	}
 	sink.cache.Actors = append(sink.cache.Actors, BuildActor(a, actor))
