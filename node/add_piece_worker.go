@@ -69,7 +69,7 @@ func (w *AddPieceWorker) Start(ctx context.Context, node *Node) error {
 					delete(stagedSectors, sectorID)
 				}
 				if len(stagedSectors) > 1 {
-					log.Warningf("skip add piece round, since staged or sealing sectors: %d", len(stagedSectors))
+					// log.Warningf("skip add piece round, since staged or sealing sectors: %d", len(stagedSectors))
 					continue
 				}
 
