@@ -34,7 +34,7 @@ func (w *AddPieceWorker) Start(ctx context.Context, node *Node) error {
 
 	w.node = node
 
-	maxBytes := go_sectorbuilder.GetMaxUserBytesPerStagedSector(node.sectorBuilder.(*sectorbuilder.RustSectorBuilder).SectorClass.SectorSize().Uint64())
+	maxBytes := go_sectorbuilder.GetMaxUserBytesPerStagedSector(node.SectorStorage.sectorBuilder.(*sectorbuilder.RustSectorBuilder).SectorClass.SectorSize().Uint64())
 	pieceData := make([]byte, maxBytes)
 	_, err = io.ReadFull(rand.Reader, pieceData)
 	if err != nil {
@@ -57,7 +57,7 @@ func (w *AddPieceWorker) Start(ctx context.Context, node *Node) error {
 			case <-time.After(5 * time.Second):
 				var sealedSectors []uint64
 				for sectorID := range stagedSectors {
-					meta, err := node.sectorBuilder.(*sectorbuilder.RustSectorBuilder).FindSealedSectorMetadata(sectorID)
+					meta, err := node.SectorStorage.sectorBuilder.(*sectorbuilder.RustSectorBuilder).FindSealedSectorMetadata(sectorID)
 					if err != nil { // failed
 						log.Errorf("find failed sector %d: %s", sectorID, err)
 						continue
@@ -73,7 +73,7 @@ func (w *AddPieceWorker) Start(ctx context.Context, node *Node) error {
 					continue
 				}
 
-				sectorID, err := node.sectorBuilder.AddPiece(ctx, data.Cid(), uint64(len(pieceData)), bytes.NewReader(pieceData))
+				sectorID, err := node.SectorStorage.sectorBuilder.AddPiece(ctx, data.Cid(), uint64(len(pieceData)), bytes.NewReader(pieceData))
 				if err != nil {
 					log.Errorf("failed to add piece: %s", err)
 					continue
