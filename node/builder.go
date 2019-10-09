@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/filecoin-project/go-filecoin/actor/builtin"
+	"github.com/filecoin-project/go-filecoin/sink"
 	"github.com/ipfs/go-bitswap"
 	bsnet "github.com/ipfs/go-bitswap/network"
 	bserv "github.com/ipfs/go-blockservice"
@@ -265,6 +266,8 @@ func (b *Builder) build(ctx context.Context) (*Node, error) {
 		SectorBuilder: nd.SectorBuilder,
 		Wallet:        nd.Wallet.Wallet,
 	}))
+
+	sink.Init(nd.PorcelainAPI)
 
 	return nd, nil
 }

@@ -152,11 +152,11 @@ func BuildMessageReceipt(m types.MessageReceipt) MessageReceipt {
 */
 
 type SendMessage struct {
-	Cid    string  `gorm:"primary_key"` // cid of message
-	To     string  `gorm:"index:idx_to,idx_to_method"`
-	From   string  `gorm:"index"`
-	Value  float64 `gorm:"index"`
-	Method string  `gorm:"index:idx_to_method"`
+	Cid      string  `gorm:"primary_key"` // cid of message
+	ToAddr   string  `gorm:"index:idx_to,idx_to_method"`
+	FromAddr string  `gorm:"index"`
+	Value    float64 `gorm:"index"`
+	Method   string  `gorm:"index:idx_to_method"`
 
 	Height uint64 `gorm:"index"`
 }
@@ -167,11 +167,11 @@ func BuildSendMessage(m *types.Message) SendMessage {
 		panic(err)
 	}
 	return SendMessage{
-		Cid:    cid.String(),
-		To:     m.To.String(),
-		From:   m.From.String(),
-		Value:  attoToFloat64(m.Value),
-		Method: m.Method,
+		Cid:      cid.String(),
+		ToAddr:   m.To.String(),
+		FromAddr: m.From.String(),
+		Value:    attoToFloat64(m.Value),
+		Method:   m.Method,
 	}
 }
 
