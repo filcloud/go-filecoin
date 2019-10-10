@@ -111,6 +111,7 @@ func HandleMessagesInBlock(b *types.Block, r consensus.ApplyMessagesResponse) {
 	if sink == nil || !sink.messagesInBlock {
 		return
 	}
+	sink.cache.Blocks = append(sink.cache.Blocks, BuildBlock(b))
 	fmt.Println("######HandleMessagesInBlock", b, r)
 }
 
@@ -118,6 +119,7 @@ func HandleMessagesInTipSet(b *types.Block, r consensus.ApplyMessagesResponse) {
 	if sink == nil || sink.messagesInBlock {
 		return
 	}
+	sink.cache.Blocks = append(sink.cache.Blocks, BuildBlock(b))
 	fmt.Println("#####HandleMessagesInTipSet", b, r)
 }
 

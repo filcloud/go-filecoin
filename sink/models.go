@@ -64,7 +64,7 @@ type Block struct {
 	Timestamp       time.Time `gorm:"index"`
 }
 
-func BuildBlock(b types.Block) Block {
+func BuildBlock(b *types.Block) Block {
 	return Block{
 		Cid:             b.Cid().String(),
 		Miner:           b.Miner.String(),
@@ -83,8 +83,8 @@ func BuildBlock(b types.Block) Block {
 type Message struct {
 	Cid         string `gorm:"primary_key"` // cid of signed message
 	SuccinctCid string `gorm:"index"`       // cid of message
-	To          string `gorm:"index:idx_to,idx_to_method;"`
-	From        string `gorm:"index;"`
+	ToAddr      string `gorm:"index:idx_to,idx_to_method;"`
+	FromAddr    string `gorm:"index;"`
 	Nonce       uint64
 	Value       float64 `gorm:"index"`
 	ValueBytes  []byte
@@ -116,8 +116,8 @@ func BuildMessage(m types.SignedMessage, r types.MessageReceipt) Message {
 	return Message{
 		Cid:         cid.String(),
 		SuccinctCid: succinctCid.String(),
-		To:          m.To.String(),
-		From:        m.From.String(),
+		ToAddr:      m.To.String(),
+		FromAddr:    m.From.String(),
 		Nonce:       uint64(m.Nonce),
 		Value:       attoToFloat64(m.Value),
 		ValueBytes:  m.Value.Bytes(),

@@ -43,7 +43,7 @@ func Persist(ctx context.Context) error {
 
 	heightMin := c.TipSets[0]
 	heightMax := c.TipSets[len(c.TipSets)-1]
-	_, _ = heightMin, heightMax
+
 	var heights []uint64
 	for _, t := range c.TipSets {
 		heights = append(heights, t.Height)
