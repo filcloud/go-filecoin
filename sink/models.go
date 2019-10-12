@@ -89,7 +89,7 @@ type Message struct {
 	Value       float64 `gorm:"index"`
 	ValueBytes  []byte
 	Method      string `gorm:"index:idx_to_method"`
-	Params      []byte
+	Params      []byte `gorm:"type:varbinary(1023);"`
 
 	GasPrice float64 `json:"gasPrice"`
 	GasLimit uint64  `json:"gasLimit"`
@@ -98,13 +98,14 @@ type Message struct {
 
 	// receipt
 	ExitCode uint8
-	Return   []byte
+	ReturnValue   []byte
 	Gas      float64
 
-	Height uint64 `gorm:"index"`
+	UpdatedHeight uint64 `gorm:"index"`
+	UpdatedAt     time.Time
 }
 
-func BuildMessage(m types.SignedMessage, r types.MessageReceipt) Message {
+func BuildMessage(m *types.SignedMessage, r *types.MessageReceipt, height uint64) Message {
 	cid, err := m.Cid()
 	if err != nil {
 		panic(err)
@@ -130,8 +131,10 @@ func BuildMessage(m types.SignedMessage, r types.MessageReceipt) Message {
 		Signature: m.Signature,
 
 		ExitCode: r.ExitCode,
-		Return:   toCbor(r.Return),
+		ReturnValue:   toCbor(r.Return),
 		Gas:      attoToFloat64(r.GasAttoFIL),
+
+		UpdatedHeight: height,
 	}
 }
 
@@ -158,10 +161,11 @@ type SendMessage struct {
 	Value    float64 `gorm:"index"`
 	Method   string  `gorm:"index:idx_to_method"`
 
-	Height uint64 `gorm:"index"`
+	UpdatedHeight uint64 `gorm:"index"`
+	UpdatedAt     time.Time
 }
 
-func BuildSendMessage(m *types.Message) SendMessage {
+func BuildSendMessage(m *types.Message, height uint64) SendMessage {
 	cid, err := m.Cid()
 	if err != nil {
 		panic(err)
@@ -172,6 +176,7 @@ func BuildSendMessage(m *types.Message) SendMessage {
 		FromAddr: m.From.String(),
 		Value:    attoToFloat64(m.Value),
 		Method:   m.Method,
+		UpdatedHeight: height,
 	}
 }
 

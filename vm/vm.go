@@ -12,7 +12,7 @@ import (
 	"github.com/filecoin-project/go-filecoin/vm/errors"
 )
 
-var HandleSendMessage func(m *types.Message)
+var HandleSendMessage func(m *types.Message, height *types.BlockHeight)
 
 // Send executes a message pass inside the VM. If error is set it
 // will always satisfy either ShouldRevert() or IsFault().
@@ -37,7 +37,7 @@ func send(ctx context.Context, deps sendDeps, vmCtx *Context) ([][]byte, uint8, 
 			return nil, 1, err
 		}
 		if HandleSendMessage != nil {
-			HandleSendMessage(vmCtx.message)
+			HandleSendMessage(vmCtx.message, vmCtx.BlockHeight())
 		}
 	}
 

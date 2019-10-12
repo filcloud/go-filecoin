@@ -112,6 +112,11 @@ func HandleMessagesInBlock(b *types.Block, r consensus.ApplyMessagesResponse) {
 		return
 	}
 	sink.cache.Blocks = append(sink.cache.Blocks, BuildBlock(b))
+	for i := 0; i < len(r.SuccessfulMessages) && i < len(r.Results); i++ {
+		message := r.SuccessfulMessages[i]
+		result := r.Results[i]
+		sink.cache.Messages = append(sink.cache.Messages, BuildMessage(message, result.Receipt, uint64(b.Height)))
+	}
 	fmt.Println("######HandleMessagesInBlock", b, r)
 }
 
@@ -120,14 +125,19 @@ func HandleMessagesInTipSet(b *types.Block, r consensus.ApplyMessagesResponse) {
 		return
 	}
 	sink.cache.Blocks = append(sink.cache.Blocks, BuildBlock(b))
+	for i := 0; i < len(r.SuccessfulMessages) && i < len(r.Results); i++ {
+		message := r.SuccessfulMessages[i]
+		result := r.Results[i]
+		sink.cache.Messages = append(sink.cache.Messages, BuildMessage(message, result.Receipt, uint64(b.Height)))
+	}
 	fmt.Println("#####HandleMessagesInTipSet", b, r)
 }
 
-func HandleSendMessage(m *types.Message) {
+func HandleSendMessage(m *types.Message, height *types.BlockHeight) {
 	if sink == nil || !sink.inHandling {
 		return
 	}
-	sink.cache.SendMessages = append(sink.cache.SendMessages, BuildSendMessage(m))
+	sink.cache.SendMessages = append(sink.cache.SendMessages, BuildSendMessage(m, height.AsBigInt().Uint64()))
 	fmt.Println("#####HandleSendMessage", m)
 }
 
