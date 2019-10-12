@@ -101,7 +101,7 @@ type Message struct {
 	ReturnValue   []byte
 	Gas      float64
 
-	UpdatedHeight uint64 `gorm:"index"`
+	Height uint64 `gorm:"index"`
 	UpdatedAt     time.Time
 }
 
@@ -134,7 +134,7 @@ func BuildMessage(m *types.SignedMessage, r *types.MessageReceipt, height uint64
 		ReturnValue:   toCbor(r.Return),
 		Gas:      attoToFloat64(r.GasAttoFIL),
 
-		UpdatedHeight: height,
+		Height: height,
 	}
 }
 
@@ -161,7 +161,7 @@ type SendMessage struct {
 	Value    float64 `gorm:"index"`
 	Method   string  `gorm:"index:idx_to_method"`
 
-	UpdatedHeight uint64 `gorm:"index"`
+	Height uint64 `gorm:"index"`
 	UpdatedAt     time.Time
 }
 
@@ -176,7 +176,7 @@ func BuildSendMessage(m *types.Message, height uint64) SendMessage {
 		FromAddr: m.From.String(),
 		Value:    attoToFloat64(m.Value),
 		Method:   m.Method,
-		UpdatedHeight: height,
+		Height: height,
 	}
 }
 
@@ -271,7 +271,7 @@ type Deal struct {
 	Duration    uint64
 }
 
-func BuildDeal(d storagedeal.Deal) Deal {
+func BuildDeal(d *storagedeal.Deal) Deal {
 	checkUint64(d.Proposal.Size.BigInt())
 	return Deal{
 		ProposalCid: Cid(d.Response.ProposalCid),

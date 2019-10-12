@@ -3,6 +3,7 @@ package sink
 import (
 	"context"
 	"fmt"
+	"github.com/filecoin-project/go-filecoin/protocol/storage/storagedeal"
 	"os"
 
 	"github.com/cochainio/orm"
@@ -54,6 +55,8 @@ func Init(porcelain PorcelainAPI) {
 	storagemarket.HandleCreateMiner = HandleCreateMiner
 	miner.HandleAddMinerAsk = HandleAddMinerAsk
 	state.HandleSetActor = HandleSetActor
+	// TODO after deal on-chain
+	//strgdls.HandleAddDeal = HandleAddDeal
 }
 
 func Begin() {
@@ -117,7 +120,7 @@ func HandleMessagesInBlock(b *types.Block, r consensus.ApplyMessagesResponse) {
 		result := r.Results[i]
 		sink.cache.Messages = append(sink.cache.Messages, BuildMessage(message, result.Receipt, uint64(b.Height)))
 	}
-	fmt.Println("######HandleMessagesInBlock", b, r)
+	//fmt.Println("######HandleMessagesInBlock", b, r)
 }
 
 func HandleMessagesInTipSet(b *types.Block, r consensus.ApplyMessagesResponse) {
@@ -130,7 +133,7 @@ func HandleMessagesInTipSet(b *types.Block, r consensus.ApplyMessagesResponse) {
 		result := r.Results[i]
 		sink.cache.Messages = append(sink.cache.Messages, BuildMessage(message, result.Receipt, uint64(b.Height)))
 	}
-	fmt.Println("#####HandleMessagesInTipSet", b, r)
+	//fmt.Println("#####HandleMessagesInTipSet", b, r)
 }
 
 func HandleSendMessage(m *types.Message, height *types.BlockHeight) {
@@ -163,4 +166,12 @@ func HandleSetActor(a address.Address, actor *actor.Actor) {
 	}
 	sink.cache.Actors = append(sink.cache.Actors, BuildActor(a, actor))
 	fmt.Println("#####HandleSetActor", a, actor)
+}
+
+func HandleAddDeal(d *storagedeal.Deal) {
+	if sink == nil {
+		return
+	}
+	//sink.cache.Deals = append(sink.cache.Deals, BuildDeal(d))
+	fmt.Println("#####HandleAddDeal", d)
 }
